@@ -89,6 +89,21 @@
   }
 }
 
+/* 네이티브 <select> 드롭다운이 다크모드에서 브라우저 기본(흰 배경/어두운 글씨)으로 렌더링돼
+   옵션 목록 글씨가 거의 안 보이는 문제가 여러 화면에서 반복됐다 — 개별 <option>마다 색상
+   클래스를 넣는 대신 전역으로 한 번에 고친다. color-scheme으로 브라우저 네이티브 팝업 자체를
+   다크로 렌더링하게 하고, 배경/글씨색도 명시해서 이중으로 보장한다. */
+select {
+  color-scheme: light;
+}
+.dark select {
+  color-scheme: dark;
+}
+select option {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
 /* Glassmorphism Utilities */
 .glass {
   background: rgba(255, 255, 255, 0.7);
