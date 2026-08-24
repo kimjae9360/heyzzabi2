@@ -11,7 +11,7 @@ Next.js 기반 AI 팀 업무 자동화 시스템.
 
 - **개발 방식**: Figma 목업이 아니라 코드 우선(code-first)으로 진행 중. (Figma는 Starter 플랜 레이트리밋에 걸려 보류)
 - **단일 프로젝트 전제**: 현재 앱은 "프로젝트가 항상 1개만 존재한다"는 전제로 여러 화면(문서생성/히스토리 등)이 `projects[0]`을 그대로 사용함. 멀티 프로젝트로 확장하려면 이 전제를 깨야 함.
-- **스택**: Next.js 16(App Router, Turbopack) · React 19 · Prisma ORM v5.22 + SQLite(`dev.db`) · TypeScript · Tailwind v4 · OpenAI SDK(`gpt-4o-mini`)
+- **스택**: Next.js 16(App Router, Turbopack) · React 19 · Prisma ORM v5.22 + PostgreSQL(Neon, `.env`의 `DATABASE_URL`) · TypeScript · Tailwind v4 · OpenAI SDK(`gpt-4o-mini`) — **2026-08-24 정정**: 이 문서에 오래 SQLite(`dev.db`)라고 적혀 있었는데 실제로는 원격 Neon Postgres를 씀.
 
 ## 1. 벤치마킹 대상 (오픈소스 레퍼런스)
 
@@ -33,7 +33,12 @@ Figma가 막힌 이후 "벤치마킹을 직접 코드로 구현" 하는 방향�
   1. 회의록 → 기획서 생성 (`/api/projects/[id]/documents/[docId]/generate`, type=`proposal`)
   2. 기획서 → 요구사항정의서 생성 (같은 route, type=`reqSpec`, 기획서 `APPROVED` 이후에만 가능)
   3. 요구사항정의서 → 업무 자동 추출(`extract-tasks`) + AI 배치 배정(`assign-tasks`, 2026-08-24부터 — 문서의 업무 전체를 한 번에 보고 배정해 워크로드 분산) + WBS 일정 계산. 문서생성 페이지의 "업무분배" 탭이 이 흐름의 UI. `/tasks` 페이지 칸반 카드의 개별 담당자 배정/재배정은 별도 경로(`recommend-assignees`, 업무 1건씩)로 계속 존재 — 둘 다 `assignmentReason`을 남기므로 어느 경로로 배정해도 근거가 남는다
-- **환각(hallucination) 방지 원칙**: 모든 생성 프롬프트에 `NO_HALLUCINATION_RULE`("원본에 없는 사실/기능/수치/일정은 절대 추가하지 마라")을 시스템 메시지에 명시. `temperature: 0.0`, `response_format: json_object`로 구조화 출력 강제. **새 AI 기능을 추가할 때도 이 패턴을 반드시 유지할 것.**
+- **환각(hallucination) 방지 원칙**: 모든 생성 프롬프트에 `NO_HALLUCINATION_RULE`("원본에 없는 사실/기능/수치/일정은 절대 추가하지 마라")을 시스템 메시지에 명시. `response_format: json_object`로 구조화 출력 강제. **새 AI 기능을 추가할 때도 이 패턴을 반드시 유지할 것.**
+- **에이전트 temperature는 하드코딩이 아니라 `Project.agentConfig`에서 옴** (2026-08-24, `/settings` 페이지) —
+  `generate`/`extract-tasks` 라우트는 `src/lib/agentConfig.ts`의 `parseAgentConfig(project.agentConfig)`로
+  값을 읽는다. 기본값은 기존과 동일(`proposal`/`reqSpec` 0.0, `taskAssign` 0.1)이고, 환각 방지 원칙을
+  지키기 위해 **서버에서 항상 0~0.3으로 clamp**한다 — 새 AI 기능을 추가할 때 이 파일을 참고해 같은
+  패턴(설정 가능하되 안전 범위로 강제 clamp)을 유지할 것.
 - **1안/2안/3안(멀티 드래프트) 기능은 폐기됨** — 처음엔 기획서를 3개 버전으로 생성했으나 사용자가 "하나만 나오는 걸로" 되돌리라고 명시적으로 요청, 현재는 단일 생성만 지원. `ProposalDraftOption` 관련 코드/라우트는 전부 제거됨.
 - **업무 파이프라인 상태값 (중요, 한 번 크게 잘못 설계했다가 수정한 이력 있음)**:
   `BACKLOG(대기) → PENDING_APPROVAL(배분승인대기) → IN_PROGRESS(진행중) → DONE(완료)`
@@ -68,6 +73,24 @@ Figma가 막힌 이후 "벤치마킹을 직접 코드로 구현" 하는 방향�
 - [x] 반려된 기획서/요구사항정의서 **직접 수정** 기능 (2026-08-24) — 담당자가 AI 재생성 없이 `ProposalTemplate`/`ReqSpecTemplate`을 편집 모드(`editable` prop)로 바로 고쳐서 저장 가능. 저장하면 재생성과 동일하게 상태가 DRAFT로 돌아가고 반려 사유가 지워짐. PATCH `/api/projects/[id]/documents/[docId]`가 `proposalContent`/`reqSpecContent`/상태/반려사유 필드를 받도록 확장함
 - [x] 히스토리 페이지 페이지네이션 (2026-08-24) — 목록이 길어지면서 요청, 10건씩 잘라서 보여주고 하단에 페이지 번호 버튼 추가 (필터 바꾸면 1페이지로 리셋)
 - [x] **업무분배 탭** 신규 추가 (2026-08-24) — 문서생성 파이프라인의 3번째 탭. 요구사항정의서 승인 후, 이 문서에서 나온 업무 전체를 한 번에 보고 AI가 담당자를 추천(워크로드 분산 고려) + WBS 시작/종료일을 코드로 결정적 계산 → PM이 담당자/일정을 리뷰·조정 후 확정하면 바로 진행중 상태로 전환. 담당자별 간트 바 뷰 포함, 확정 후에도 PM은 담당자 재배정 가능(근거는 재배정 시 함께 지워짐). `assign-tasks` 라우트 신규, `Task.assignmentReason` 필드 추가, `/tasks` 페이지에도 10건 페이지네이션 적용. 업무현황(`/tasks`) 리스트/WBS 뷰에도 동일하게 10건 페이지네이션 적용
+- [x] `/settings` 페이지 신규 구현 + 고아 라우트 `/roles` 삭제 (2026-08-24) — 기본 정보(프로젝트명/설명),
+  외부 연동(Slack Webhook URL/GitHub owner·repo — 저장만 하고 아직 실제 연동 동작은 없다는 점을 화면에
+  명시), **에이전트 설정 3종**(기획서/요구사항정의서/업무 배분 생성 에이전트별 temperature, 업무 배분
+  에이전트의 업무 추출 개수 범위)을 다룸. `Project.agentConfig`(JSON string) 필드를 신설했고
+  `generate`/`extract-tasks` 라우트가 하드코딩 값 대신 이 값을 실제로 읽어 OpenAI 호출에 반영함.
+  환각 방지 원칙(아래 참고)을 지키기 위해 temperature는 화면 슬라이더뿐 아니라 서버(`src/lib/agentConfig.ts`
+  의 `parseAgentConfig`)에서도 0~0.3으로 강제 clamp — API를 직접 쳐도 못 벗어남. PM만 수정 가능,
+  값이 없는(설정 페이지 방문 전) 프로젝트는 기존 하드코딩 기본값과 완전히 동일하게 동작.
+- [x] 문서생성 목록에서 PM에게 아직 검토 요청 전(DRAFT)인 문서 숨김 (2026-08-24) — PM이 직접 만든
+  문서는 생성 즉시 APPROVED로 넘어가므로(`autoApprove` 로직), 목록에 DRAFT로 남은 문서는 전부 PM이
+  액션할 게 없는 팀원의 작업 중 문서였음. `MEMBER` 화면은 기존과 동일(자기 초안 계속 보임).
+- [x] 문서생성 파이프라인 상단 스텝퍼 3단계 라벨 "업무분배"→"업무 배분" 변경, "배분완료" 필터 칩
+  추가(승인됨 중 업무 배분까지 끝난 것만 좁혀보기), 문서 목록 카드에 날짜(회의 날짜, 없으면 최근
+  수정일) 표시 (2026-08-24) — **단, `AgentBadge`/버튼 등 다른 곳은 여전히 "업무분배"라 용어가
+  갈라짐, `TODO.md` 낮은 우선순위 항목 참고.**
+- [x] 히스토리 빈 상태 CTA, 승인함 링크, 삭제불가 아이콘 자물쇠 표시, WBS 읽기전용 필드 자물쇠+사유
+  표시 (2026-08-24) — `TODO.md`에 있던 중간/낮은 우선순위 UX 항목들.
+- [x] 직원관리 표: "입사일 / 퇴사일" 헤더 줄바꿈 지점 수정, "OO팀 · 직무명" 셀 강제 한 줄 (2026-08-24)
 - [x] 업무분배 관련 버그 수정 라운드 (2026-08-24, 코드리뷰로 발견) — AI 후보 풀에 PM이 섞여 담당자 드롭다운과 안 맞던 문제, WBS 추천 날짜가 UTC 변환으로 하루 밀리던 타임존 버그, 배치를 여러 번 돌리면 이미 확정된 일정과 겹치던 문제, 칸반에서 수동/AI 배정할 때 `assignmentReason`이 안 지워지거나 안 저장되던 문제, 업무분배 탭 확정 목록의 담당자 드롭다운이 일반유저에게도 열려있던 권한 누락, 페이지네이션이 필터 변경 외의 이유로 목록이 줄면 빈 페이지를 보여주던 경계 버그, Git상태/업무상태 변경 실패 시 조용히 무시되던 문제, 다크테마에서 드롭다운 옵션 글씨 안 보이던 문제 — 전부 수정 완료. 문서 삭제 시 그 문서에서 나온 업무가 `sourceDocumentId`만 남기고 고아가 되는 문제는 발견했으나 수정 안 함(캐스케이드 삭제할지 연결만 끊을지 제품 결정 필요)
 
 ## 4. 알려진 미구현 / 개선 필요 항목 (다음에 할 일 후보)
@@ -83,7 +106,8 @@ Figma가 막힌 이후 "벤치마킹을 직접 코드로 구현" 하는 방향�
 - [ ] 챗봇/AI 리서치 기능 — 사용자 요청으로 현재 UI에서 의도적으로 숨김 처리됨 (완전 미구현은 아니고 "숨김" 상태, 필요 시 재노출 검토)
 - [ ] Slack/Git 실제 연동 — 현재 `gitStatus` 필드는 있지만 수동 드롭다운 선택일 뿐, 실제 GitHub PR 상태 연동이나 Slack 알림 발송은 없음
 - [ ] 지연 업무 자동 감지/알림 — 마감일(`wbsEnd`) 필드는 있지만 이를 기준으로 한 자동 지연 감지 로직 없음
-- [ ] 설정(`/settings`) 화면 — 라우트/콘텐츠 미구현
+- [x] ~~설정(`/settings`) 화면~~ — 2026-08-24 **해결**. 아래 3절 참고. 어디에도 안 걸려있던
+  고아 라우트 `/roles`는 삭제(역할 변경은 이미 직원관리에서 가능).
 - [x] ~~AI 담당자 추천 이력이 영구 저장되지 않음~~ — 2026-08-24부로 **부분 해결**: 확정된 배정의 근거(`Task.assignmentReason`)는 이제 저장됨(칸반 경로/업무분배 탭 둘 다). 다만 "확정 안 된 다른 후보들"까지 포함한 전체 추천 이력 로그는 여전히 없음 — 그게 필요하면 여전히 아래 4.1 설계 메모(별도 테이블) 방향으로 확장.
 
 - [x] ~~`/project/new` "AI 기획 자동화 마법사" — 실제 파이프라인과 어긋난 프로토타입~~ — 2026-08-24 **해결**.
@@ -126,5 +150,5 @@ model AssigneeRecommendation {
 ## 6. 개발 환경 메모
 
 - 로컬 실행: `npm run dev --prefix heyzzabi2` (포트 3000), `.claude/launch.json`에 `"heyzzabi2"` 설정으로 등록되어 있음
-- Prisma 스키마 변경 시: 반드시 dev 서버를 먼저 내린 뒤(`prisma generate`가 Windows에서 DLL 파일 잠금으로 EPERM 나기 때문) `npx prisma db push --accept-data-loss` → `npx prisma generate` → 서버 재기동 순서로 진행
+- Prisma 스키마 변경 시: 반드시 dev 서버를 먼저 내린 뒤(`prisma generate`가 Windows에서 DLL 파일 잠금으로 EPERM 나기 때문) `npx prisma db push --accept-data-loss` → `npx prisma generate` → 서버 재기동 순서로 진행. **2026-08-24 확인**: 다른 세션(다른 터미널/채팅)에서 띄워둔 `next dev`도 똑같이 이 DLL을 잠근다 — `netstat -ano`로 3000번 포트 PID를 찾아 그 프로세스를 내려야 `prisma generate`가 성공함.
 - git 저장소로 전환됨(`origin`: `github.com/kimjae9360/heyzzabi2`, 기본 브랜치 `main`) — 커밋 로그도 이제 기록의 일부이니 `git log`도 함께 참고할 것.
