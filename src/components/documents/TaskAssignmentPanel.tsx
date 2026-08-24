@@ -3,12 +3,14 @@
 import { Fragment, useEffect, useState } from "react";
 import { Bot, Loader2, ChevronDown, UserIcon, CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AgentBadge } from "@/components/ui/AgentBadge";
 
 type Task = {
   id: string;
   title: string;
   description: string | null;
   difficulty: string;
+  difficultyReason: string | null;
   estimatedHours: number | null;
   status: string;
   assigneeId: string | null;
@@ -23,6 +25,9 @@ type Member = { id: string; name: string };
 type Suggestion = {
   taskId: string;
   title: string;
+  difficulty: string;
+  difficultyReason: string | null;
+  estimatedHours: number | null;
   suggestedAssigneeId: string | null;
   fitScore: number | null;
   techFit: string | null;
@@ -36,6 +41,9 @@ type Suggestion = {
 type DraftRow = {
   taskId: string;
   title: string;
+  difficulty: string;
+  difficultyReason: string | null;
+  estimatedHours: number | null;
   assigneeId: string;
   fitScore: number | null;
   techFit: string | null;
@@ -72,10 +80,11 @@ export function TaskAssignmentPanel({
   const [reassigning, setReassigning] = useState<string | null>(null);
   const [expandedReason, setExpandedReason] = useState<string | null>(null);
 
-  // 담당자 변경 드롭다운에 쓸 팀원 목록은 배정 실행 여부와 무관하게 항상 필요하다
+  // 담당자 변경 드롭다운에 쓸 팀원 목록은 배정 실행 여부와 무관하게 항상 필요하다.
+  // 온보딩 전이라 이름이 비어있는 계정은 드롭다운에 빈 옵션으로 뜨니 제외한다.
   useEffect(() => {
     fetch("/api/users").then(r => r.json()).then(json => {
-      const active = (json.data ?? []).filter((u: any) => u.role === "EMPLOYEE" && u.status === "ACTIVE");
+      const active = (json.data ?? []).filter((u: any) => u.role === "EMPLOYEE" && u.status === "ACTIVE" && u.name?.trim());
       setMembers(active.map((u: any) => ({ id: u.id, name: u.name })));
     }).catch(() => {});
   }, []);
@@ -110,6 +119,9 @@ export function TaskAssignmentPanel({
         (data.suggestions as Suggestion[]).map(s => ({
           taskId: s.taskId,
           title: s.title,
+          difficulty: s.difficulty,
+          difficultyReason: s.difficultyReason,
+          estimatedHours: s.estimatedHours,
           assigneeId: s.suggestedAssigneeId ?? "",
           fitScore: s.fitScore,
           techFit: s.techFit,
@@ -204,7 +216,16 @@ export function TaskAssignmentPanel({
                       >
                         {d.techFit && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== d.taskId && "-rotate-90")} />}
                         <span>
-                          {d.title}
+                          <span className="inline-flex items-center gap-1.5">
+                            {d.title}
+                            {/* 난이도/시간은 요구사항정의서에서 업무를 추출할 때 AI가 함께 산정한 값 — 근거는 hover로 확인 */}
+                            <span
+                              title={d.difficultyReason ? `AI 산정 근거: ${d.difficultyReason}` : "산정 근거가 없습니다."}
+                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
+                            >
+                              {d.difficulty} · {d.estimatedHours ?? "-"}h
+                            </span>
+                          </span>
                           {d.techFit && <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{d.techFit}</span>}
                         </span>
                       </button>
@@ -290,7 +311,8 @@ export function TaskAssignmentPanel({
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 mx-auto"
             >
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-              {tasks.length === 0 ? "AI로 업무분배 시작" : "AI로 나머지 배분 추천받기"}
+              {tasks.length === 0 ? "업무분배 시작" : "나머지 배분 추천받기"}
+              <AgentBadge agent="taskAssign" />
             </button>
           </div>
         ) : (
@@ -346,7 +368,15 @@ function AssignedList({
                       >
                         {reason && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== t.id && "-rotate-90")} />}
                         <span>
-                          {t.title}
+                          <span className="inline-flex items-center gap-1.5">
+                            {t.title}
+                            <span
+                              title={t.difficultyReason ? `AI 산정 근거: ${t.difficultyReason}` : "산정 근거가 없습니다."}
+                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
+                            >
+                              {t.difficulty} · {t.estimatedHours ?? "-"}h
+                            </span>
+                          </span>
                           {reason?.techFit ? (
                             <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{reason.techFit}</span>
                           ) : (
@@ -411,22 +441,33 @@ function AssignedList({
 }
 
 // 담당자별로 업무 막대를 타임라인 위에 배치하는 가벼운 간트 차트 — 드래그로 일정을 조정하는
-// 편집형 간트는 아니고, 배정 결과를 한눈에 보여주는 용도. 눈금 그리드로 날짜를 바로 읽을 수 있게 하고,
-// 짧은(하루짜리) 막대는 안에 라벨이 안 들어가므로 막대 오른쪽 바깥에 라벨을 띄운다.
+// 편집형 간트는 아니고, 배정 결과를 한눈에 보여주는 용도.
+//
+// 예전엔 전체 기간을 6등분해서 눈금을 찍었는데, 업무 기간이 짧으면(예: 이틀) 눈금 하나가
+// 몇 시간 단위가 되면서 날짜만 보이는 라벨에는 같은 날짜가 여러 번 찍히는 문제가 있었다
+// ("8월 24일"이 4번 나오는 식). 시간 비례가 아니라 "하루 = 한 칸"인 날짜 그리드로 바꿔서,
+// 며칠짜리 프로젝트든 항상 각 날짜가 정확히 한 번씩만 나오고 칸 사이에 점선 구분선이 생기게 한다.
 function GanttChart({ items }: { items: GanttItem[] }) {
   if (items.length === 0) return null;
 
-  const starts = items.map(i => new Date(i.wbsStart).getTime());
-  const endsRaw = items.map(i => new Date(i.wbsEnd).getTime());
-  const rangeStart = Math.min(...starts);
-  // 전부 하루짜리 업무면 범위가 0이 되어 나눗셈이 깨지므로 최소 하루는 확보
-  const rangeEnd = Math.max(Math.max(...endsRaw), rangeStart + 86400000);
-  const totalMs = rangeEnd - rangeStart;
-  const pct = (ms: number) => ((ms - rangeStart) / totalMs) * 100;
-  const fmt = (ms: number) => new Date(ms).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  // 시간대 영향 없이 "그 날짜"만 비교하려고 로컬 자정으로 맞춘다
+  const toLocalMidnight = (iso: string) => {
+    const d = new Date(iso);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+  const DAY_MS = 86400000;
 
-  const TICKS = 6;
-  const ticks = Array.from({ length: TICKS + 1 }, (_, i) => rangeStart + (totalMs * i) / TICKS);
+  const starts = items.map(i => toLocalMidnight(i.wbsStart));
+  const ends = items.map(i => toLocalMidnight(i.wbsEnd));
+  const rangeStartMs = Math.min(...starts);
+  const rangeEndMs = Math.max(...ends);
+  const dayCount = Math.round((rangeEndMs - rangeStartMs) / DAY_MS) + 1;
+  const days = Array.from({ length: dayCount }, (_, i) => new Date(rangeStartMs + i * DAY_MS));
+  const dayIndexOf = (iso: string) => Math.round((toLocalMidnight(iso) - rangeStartMs) / DAY_MS);
+  const fmtDate = (d: Date) => d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  const fmtWeekday = (d: Date) => d.toLocaleDateString("ko-KR", { weekday: "short" });
+  const todayIndex = Math.round((toLocalMidnight(new Date().toISOString()) - rangeStartMs) / DAY_MS);
 
   const byAssignee = new Map<string, GanttItem[]>();
   items.forEach(i => {
@@ -439,55 +480,65 @@ function GanttChart({ items }: { items: GanttItem[] }) {
     personItems.forEach((item, idx) => rows.push({ label: idx === 0 ? name : null, item }));
   });
 
+  // 날짜 칸 하나의 최소 너비를 보장해서 기간이 길어도 칸이 안 찌그러지고 가로 스크롤되게 한다
+  const dayGridStyle = { gridTemplateColumns: `repeat(${dayCount}, minmax(52px, 1fr))` };
+  const dayColClass = (i: number) =>
+    cn(
+      "border-l border-dashed",
+      i === todayIndex ? "border-primary/40" : "border-white/10",
+      i === dayCount - 1 && "border-r border-white/10"
+    );
+
   return (
     <div className="border border-white/10 rounded-xl p-4 overflow-x-auto">
-      <div className="min-w-[600px] grid gap-y-2" style={{ gridTemplateColumns: "96px 1fr" }}>
-        <div />
-        <div className="relative h-4">
-          {ticks.map((t, i) => (
-            <span
-              key={i}
-              className="absolute text-[10px] font-semibold text-muted-foreground whitespace-nowrap"
-              style={{ left: `${(i / TICKS) * 100}%`, transform: i === 0 ? "translateX(0)" : i === TICKS ? "translateX(-100%)" : "translateX(-50%)" }}
-            >
-              {fmt(t)}
-            </span>
-          ))}
-        </div>
-        {rows.map(({ label, item }) => {
-          const s = new Date(item.wbsStart).getTime();
-          const e = new Date(item.wbsEnd).getTime();
-          const left = pct(s);
-          const width = Math.max(pct(e) - left, 2);
-          const narrow = width < 16;
-          return (
-            <Fragment key={item.id}>
-              <p className="text-xs font-bold text-muted-foreground flex items-center gap-1 truncate pt-1">
-                {label && (<><UserIcon className="w-3 h-3 shrink-0" /><span className="truncate">{label}</span></>)}
-              </p>
-              <div className="relative h-6">
-                {ticks.map((t, ti) => (
-                  <div key={ti} className="absolute top-0 bottom-0 w-px bg-white/10" style={{ left: `${(ti / TICKS) * 100}%` }} />
-                ))}
-                <div
-                  title={`${item.title} · ${fmt(s)} ~ ${fmt(e)}`}
-                  className="absolute top-0 h-full rounded-md flex items-center px-2 bg-primary/80 hover:bg-primary transition-colors overflow-hidden"
-                  style={{ left: `${left}%`, width: `${width}%` }}
-                >
-                  {!narrow && <span className="text-[10px] font-semibold text-primary-foreground truncate">{item.title}</span>}
-                </div>
-                {narrow && (
-                  <span
-                    className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-foreground whitespace-nowrap pointer-events-none"
-                    style={{ left: `calc(${left}% + ${width}% + 6px)` }}
-                  >
-                    {item.title}
-                  </span>
-                )}
+      <div style={{ minWidth: `${96 + dayCount * 52}px` }}>
+        <div className="grid gap-y-2" style={{ gridTemplateColumns: `96px 1fr` }}>
+          <div />
+          {/* 날짜 헤더 — 하루 = 한 칸, 오늘은 강조 */}
+          <div className="grid" style={dayGridStyle}>
+            {days.map((d, i) => (
+              <div key={i} className={cn("text-center pb-1.5", dayColClass(i))}>
+                <p className={cn("text-[10px] font-semibold", i === todayIndex ? "text-primary" : "text-muted-foreground")}>{fmtDate(d)}</p>
+                <p className="text-[9px] text-muted-foreground/60">{fmtWeekday(d)}</p>
               </div>
-            </Fragment>
-          );
-        })}
+            ))}
+          </div>
+
+          {rows.map(({ label, item }) => {
+            const s = dayIndexOf(item.wbsStart);
+            const e = dayIndexOf(item.wbsEnd);
+            const left = (s / dayCount) * 100;
+            const width = ((e - s + 1) / dayCount) * 100;
+            const narrow = width < 14;
+            return (
+              <Fragment key={item.id}>
+                <p className="text-xs font-bold text-muted-foreground flex items-center gap-1 truncate pt-1">
+                  {label && (<><UserIcon className="w-3 h-3 shrink-0" /><span className="truncate">{label}</span></>)}
+                </p>
+                <div className="relative h-6">
+                  <div className="absolute inset-0 grid" style={dayGridStyle}>
+                    {days.map((_, i) => <div key={i} className={dayColClass(i)} />)}
+                  </div>
+                  <div
+                    title={`${item.title} · ${fmtDate(days[s])} ~ ${fmtDate(days[e])}`}
+                    className="absolute top-0 h-full rounded-md flex items-center px-2 bg-primary/80 hover:bg-primary transition-colors overflow-hidden"
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                  >
+                    {!narrow && <span className="text-[10px] font-semibold text-primary-foreground truncate">{item.title}</span>}
+                  </div>
+                  {narrow && (
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-foreground whitespace-nowrap pointer-events-none"
+                      style={{ left: `calc(${left}% + ${width}% + 6px)` }}
+                    >
+                      {item.title}
+                    </span>
+                  )}
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

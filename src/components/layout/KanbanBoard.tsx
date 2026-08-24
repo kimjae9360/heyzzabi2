@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { MoreHorizontal, Plus, CheckCircle2, XCircle, UserPlus, Loader2, X, MessageSquare, Sparkles } from "lucide-react";
+import { AgentBadge } from "@/components/ui/AgentBadge";
 import { cn } from "@/lib/utils";
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -175,7 +176,7 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
   };
 
   return (
-    <div className="min-w-[280px] md:min-w-[320px] shrink-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-xl flex flex-col max-h-full overflow-hidden">
+    <div className="w-full min-w-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-xl flex flex-col max-h-full overflow-hidden">
       <div className="p-3 border-b border-white/5 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-800/50 shrink-0">
         <div className="flex items-center gap-2">
           <div className={cn("w-3 h-3 rounded-full", column.color)} />
@@ -392,8 +393,9 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
   return (
     <>
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex-1 w-full overflow-x-auto overflow-y-hidden pb-4">
-          <div className="inline-flex gap-4 h-full w-max pr-4">
+        {/* 컬럼 4개가 가로 스크롤 없이 화면 폭에 맞춰 균등하게 나뉘도록 grid로 배치 — 완료 컬럼까지 한 화면에 다 보이게 */}
+        <div className="flex-1 w-full overflow-y-hidden pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 h-full">
             <SortableContext items={COLUMNS.map((c) => c.id)}>
               {COLUMNS.map((col) => (
                 <KanbanColumn
@@ -444,7 +446,8 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
 
             <div className="mb-5">
               <label className="flex items-center gap-1.5 text-sm font-semibold mb-2">
-                <Sparkles className="w-4 h-4 text-primary" /> AI 추천 담당자
+                <Sparkles className="w-4 h-4 text-primary" /> 추천 담당자
+                <AgentBadge agent="taskAssign" />
               </label>
               {aiLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">

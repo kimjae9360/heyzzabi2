@@ -193,17 +193,17 @@ export default function OnboardingPage() {
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium mb-1">기술 스택 (선택)</label>
-                  <TagAutocomplete value={techStack} onChange={setTechStack} suggestions={SKILL_SUGGESTIONS} placeholder="입력하거나 목록에서 선택" />
+                  <TagAutocomplete value={techStack} onChange={setTechStack} suggestions={SKILL_SUGGESTIONS} placeholder="목록에서 선택" allowCustom={false} />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">자격증 (선택)</label>
-                  <TagAutocomplete value={certifications} onChange={setCertifications} suggestions={CERT_SUGGESTIONS} placeholder="입력하거나 목록에서 선택" />
+                  <TagAutocomplete value={certifications} onChange={setCertifications} suggestions={CERT_SUGGESTIONS} placeholder="목록에서 선택" allowCustom={false} />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">주요 프로젝트 경험 (선택)</label>
-                  <TagAutocomplete value={pastProjects} onChange={setPastProjects} suggestions={PROJECT_SUGGESTIONS} placeholder="입력하거나 목록에서 선택" />
+                  <TagAutocomplete value={pastProjects} onChange={setPastProjects} suggestions={PROJECT_SUGGESTIONS} placeholder="목록에서 선택" allowCustom={false} />
                 </div>
               </div>
             </div>

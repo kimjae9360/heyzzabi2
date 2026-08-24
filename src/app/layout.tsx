@@ -7,7 +7,7 @@ import { AuthProvider } from "@/lib/auth";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "HeyZzabi v2.0",
+  title: "헤이짜비",
   description: "AI-powered Task Management System",
 };
 

@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Tailwind v4는 기본적으로 dark: 유틸리티를 OS의 prefers-color-scheme로 판단한다.
+   이 앱은 next-themes로 <html class="dark">를 직접 토글해서 라이트/다크를 관리하므로,
+   dark: 유틸리티가 그 클래스를 따르도록 명시적으로 재정의해야 한다. 이게 없으면
+   앱 내 테마 토글은 CSS 변수(bg-background 등)만 바꾸고, 컴포넌트에 직접 쓴
+   dark:bg-... 같은 클래스는 OS 다크모드 설정을 따라가버려 화면이 서로 어긋난다
+   (예: 칸반 보드 컬럼이 라이트 모드인데도 OS가 다크면 검게 보이던 문제). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-border: hsl(var(--border));
   --color-input: hsl(var(--input));

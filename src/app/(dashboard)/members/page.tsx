@@ -742,7 +742,8 @@ const handlePasswordReset = async (id: string, name: string) => {
                     value={editModal.techStack}
                     onChange={techStack => setEditModal({ ...editModal, techStack })}
                     suggestions={SKILL_SUGGESTIONS}
-                    placeholder="입력하거나 목록에서 선택"
+                    placeholder="목록에서 선택"
+                    allowCustom={false}
                   />
                 </div>
                 <div>
@@ -751,7 +752,8 @@ const handlePasswordReset = async (id: string, name: string) => {
                     value={editModal.certifications}
                     onChange={certifications => setEditModal({ ...editModal, certifications })}
                     suggestions={CERT_SUGGESTIONS}
-                    placeholder="입력하거나 목록에서 선택"
+                    placeholder="목록에서 선택"
+                    allowCustom={false}
                   />
                 </div>
                 <div>
@@ -760,7 +762,8 @@ const handlePasswordReset = async (id: string, name: string) => {
                     value={editModal.pastProjects}
                     onChange={pastProjects => setEditModal({ ...editModal, pastProjects })}
                     suggestions={PROJECT_SUGGESTIONS}
-                    placeholder="입력하거나 목록에서 선택"
+                    placeholder="목록에서 선택"
+                    allowCustom={false}
                   />
                 </div>
                 <div>

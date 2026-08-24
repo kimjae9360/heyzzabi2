@@ -35,10 +35,16 @@ export async function POST(req: Request) {
       take: 20 // Only take last 20 messages for context window
     });
 
+    // select 없이 findMany()를 쓰면 password(평문 저장) 필드까지 그대로 OpenAI로 전송된다 —
+    // 이 프롬프트가 실제로 필요한 필드만 명시적으로 골라서 절대 password가 안 섞이게 한다.
+    const memberSelect = {
+      id: true, name: true, email: true, role: true, department: true,
+      position: true, jobTitle: true, status: true, techStack: true, certifications: true, pastProjects: true,
+    } as const;
     const projects = await prisma.project.findMany({
-      include: { tasks: { include: { assignee: true } } },
+      include: { tasks: { include: { assignee: { select: memberSelect } } } },
     });
-    const members = await prisma.user.findMany();
+    const members = await prisma.user.findMany({ select: memberSelect });
 
     const systemPrompt = `
 You are the internal AI Assistant for HeyZzabi, a project management system.

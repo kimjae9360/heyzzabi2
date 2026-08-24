@@ -1,17 +1,24 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { X, Loader2, Paperclip, FileText, Users, CalendarIcon } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Loader2, Paperclip, FileText, Users, CalendarIcon, FolderKanban } from "lucide-react";
 import { useRouter } from "next/navigation";
+import TagAutocomplete from "@/components/ui/TagAutocomplete";
 
+type ProjectOption = { id: string; name: string };
+const NEW_PROJECT_VALUE = "__new__";
+
+// 샘플마다 "프로젝트 기간: 시작 ~ 종료"를 명시해둔다 — 이 기간이 기획서 생성 시 함께 추출되어,
+// 나중에 업무분배(WBS) 탭에서 오늘 날짜 대신 이 시작일부터 자동으로 일정이 잡히는 데 쓰인다.
 const SAMPLE_NOTES = [
   `[신규 쇼핑몰 프로젝트 킥오프 회의록]
 일자: 2026-08-19
+프로젝트 기간: 2026-08-25 ~ 2026-10-24 (약 2개월)
 참석자: PM, 개발팀장, 디자인팀장
 
 1. 프로젝트 개요
 - 기존 자사몰 앱을 리뉴얼하면서 "다크모드"와 "소셜 로그인", "AI 상품 추천" 기능을 최우선으로 추가한다.
-- 런칭 목표일은 2개월 뒤.
+- 런칭 목표일은 2026-10-24.
 
 2. 요구사항 및 주요 업무
 - (디자인) 기존 화면 다크모드 대응 시안 뽑기 (전체 화면 중 메인, 상품 상세, 장바구니 먼저)
@@ -21,6 +28,7 @@ const SAMPLE_NOTES = [
 
   `[내부 인트라넷 인사관리 기능 추가 회의록]
 일자: 2026-08-20
+프로젝트 기간: 2026-08-26 ~ 2026-09-25 (약 1개월)
 참석자: 인사팀장, IT지원팀
 
 1. 목적
@@ -38,6 +46,7 @@ const SAMPLE_NOTES = [
 
   `[HeyZzabi V3 대규모 업데이트 기획 회의]
 일자: 2026-08-22
+프로젝트 기간: 2026-08-24 ~ 2026-11-22 (약 3개월)
 참석자: 전사 직원
 
 - 칸반 보드의 카드들을 더 세밀하게 관리하기 위해, 카드 내부에 '하위 체크리스트(Sub-tasks)' 기능을 도입하기로 결정함.
@@ -49,15 +58,17 @@ const SAMPLE_NOTES = [
 ];
 
 export function NewDocumentModal({
-  projectId,
+  defaultProjectId,
   onClose,
 }: {
-  projectId: string;
-  onClose: () => void;
+  // 문서생성 페이지가 현재 보고 있는 프로젝트가 있으면 기본 선택값으로 넘겨준다 — 없어도(첫 사용) 동작함
+  defaultProjectId?: string;
+  onClose: (projectId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
-  const [attendees, setAttendees] = useState("");
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [memberNames, setMemberNames] = useState<string[]>([]);
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -66,10 +77,54 @@ export function NewDocumentModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
+  // 프로젝트 선택 — 기존 프로젝트 중 고르거나, 그 자리에서 새 프로젝트 이름만 입력해 바로 만들 수 있다.
+  // (아직 단일 프로젝트 전제가 남아있는 화면들이 있어, 여기서 만든 프로젝트가 다른 화면에 바로 안 보일 수 있음은 알려진 제약)
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(defaultProjectId ?? "");
+  const [newProjectName, setNewProjectName] = useState("");
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const res = await fetch("/api/projects");
+        const list = await res.json();
+        const arr: ProjectOption[] = Array.isArray(list) ? list : list.data || [];
+        setProjects(arr);
+        if (!defaultProjectId) {
+          setSelectedProjectId(arr.length > 0 ? arr[0].id : NEW_PROJECT_VALUE);
+        }
+      } catch {
+        setSelectedProjectId(NEW_PROJECT_VALUE);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+    loadProjects();
+  }, [defaultProjectId]);
+
+  // 참석자 드롭박스 후보 — DB에 등록된 사람 이름. 목록에 없는 사람은 TagAutocomplete에서 직접 입력해 추가할 수 있다.
+  useEffect(() => {
+    fetch("/api/users")
+      .then(res => res.json())
+      .then(json => setMemberNames((json.data ?? []).map((u: any) => u.name)))
+      .catch(() => {});
+  }, []);
+
+  // 내용에서 제목을 뽑아낸다 — 회의록이 보통 "[제목처럼 생긴 첫 줄]"로 시작하므로 대괄호 안쪽을 우선 사용
+  const deriveTitleFromContent = (text: string) => {
+    const firstLine = text.split("\n").map(l => l.trim()).find(l => l.length > 0) ?? "";
+    const bracketMatch = firstLine.match(/^\[(.+)\]$/);
+    const base = (bracketMatch ? bracketMatch[1] : firstLine).slice(0, 40);
+    return base || `새 문서 ${new Date().toLocaleTimeString()}`;
+  };
+
   const handleLoadSample = () => {
     const randomIndex = Math.floor(Math.random() * SAMPLE_NOTES.length);
-    setContent(SAMPLE_NOTES[randomIndex]);
-    setTitle("샘플 회의록 " + new Date().toLocaleTimeString());
+    const sample = SAMPLE_NOTES[randomIndex];
+    setContent(sample);
+    // 이미 직접 입력해둔 제목이 있으면 덮어쓰지 않는다 — 샘플은 "내용"만 채워주는 용도
+    if (!title.trim()) setTitle(deriveTitleFromContent(sample));
   };
 
   const handleFilePicked = async (file: File) => {
@@ -96,20 +151,48 @@ export function NewDocumentModal({
     }
   };
 
+  const isCreatingNewProject = selectedProjectId === NEW_PROJECT_VALUE;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
+    if (!content.trim()) return;
+    if (isCreatingNewProject && !newProjectName.trim()) return;
+
+    // 제목을 안 적었으면 내용에서 자동으로 뽑아 채운다
+    const finalTitle = title.trim() || deriveTitleFromContent(content);
+    // 회의 일시를 안 골랐으면 오늘 날짜로 진행한다 — toISOString()은 UTC 변환으로 하루가 밀릴 수 있어
+    // 로컬 연/월/일을 직접 조합한다(이 프로젝트에서 이미 여러 번 겪은 타임존 버그 패턴).
+    const todayLocal = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+    const finalMeetingDate = meetingDate || todayLocal;
 
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/documents`, {
+      let targetProjectId = selectedProjectId;
+
+      // "+ 새 프로젝트" 선택 시 문서 저장 전에 프로젝트부터 생성한다.
+      // POST /api/projects는 tasks 배열을 map()하므로 빈 배열을 명시적으로 넘겨야 한다.
+      if (isCreatingNewProject) {
+        const projectRes = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newProjectName.trim(), tasks: [] }),
+        });
+        if (!projectRes.ok) throw new Error("프로젝트 생성 실패");
+        const newProject = await projectRes.json();
+        targetProjectId = newProject.id;
+      }
+
+      const res = await fetch(`/api/projects/${targetProjectId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title,
+          title: finalTitle,
           rawContent: content,
-          meetingDate: meetingDate || undefined,
-          attendees: attendees || undefined,
+          meetingDate: finalMeetingDate,
+          attendees: attendees.length > 0 ? attendees.join(", ") : undefined,
         }),
       });
 
@@ -118,7 +201,7 @@ export function NewDocumentModal({
       }
 
       router.refresh();
-      onClose();
+      onClose(targetProjectId);
     } catch (error) {
       console.error(error);
       alert("문서 생성 중 오류가 발생했습니다.");
@@ -129,8 +212,8 @@ export function NewDocumentModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="bg-background rounded-2xl shadow-2xl w-full max-w-4xl border border-border flex flex-col max-h-[90vh]">
-        <div className="flex justify-between items-center p-6 border-b border-border shrink-0">
+      <div className="bg-background rounded-2xl shadow-2xl w-full max-w-5xl border border-border flex flex-col max-h-[95vh]">
+        <div className="flex justify-between items-center p-5 border-b border-border shrink-0">
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <FileText className="w-6 h-6 text-primary" />
@@ -139,30 +222,61 @@ export function NewDocumentModal({
             <p className="text-muted-foreground text-sm mt-1">회의 내용을 직접 입력하거나 문서 파일을 첨부하세요.</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => onClose()}
             className="text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 p-2 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 flex-1 overflow-y-auto space-y-6">
+        <div className="p-5 flex-1 overflow-y-auto space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 text-red-500 text-sm">{error}</div>
           )}
 
-          <form id="doc-form" onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">문서 제목</label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="예: 8월 19일 킥오프 회의록"
-                className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 font-medium"
-              />
+          <form id="doc-form" onSubmit={handleSubmit} className="space-y-3">
+            {/* 문서 제목(넓게) + 프로젝트 선택(좁게)을 한 줄에 — 문서를 어느 프로젝트에 등록할지
+                여기서 바로 고르거나, 프로젝트가 하나도 없으면 "+ 새 프로젝트"로 그 자리에서 만든다 */}
+            <div className="grid grid-cols-[3fr_2fr] gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">문서 제목 (선택)</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="비워두면 내용에서 자동으로 생성됩니다"
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1 flex items-center gap-1.5"><FolderKanban className="w-3.5 h-3.5" /> 프로젝트</label>
+                <select
+                  value={selectedProjectId}
+                  onChange={(e) => setSelectedProjectId(e.target.value)}
+                  disabled={loadingProjects}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm disabled:opacity-60"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                  <option value={NEW_PROJECT_VALUE}>+ 새 프로젝트</option>
+                </select>
+              </div>
             </div>
+
+            {isCreatingNewProject && (
+              <div>
+                <label className="block text-sm font-medium mb-1">새 프로젝트 이름</label>
+                <input
+                  type="text"
+                  required
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="예: 사내 인트라넷 고도화"
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -173,15 +287,15 @@ export function NewDocumentModal({
                   onChange={(e) => setMeetingDate(e.target.value)}
                   className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
                 />
+                <p className="text-xs text-muted-foreground mt-1">회의일시를 입력하지 않을 시 오늘 날짜로 진행됩니다.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> 참석자 (선택)</label>
-                <input
-                  type="text"
+                <TagAutocomplete
                   value={attendees}
-                  onChange={(e) => setAttendees(e.target.value)}
-                  placeholder="PM, 개발팀장, 디자인팀장"
-                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  onChange={setAttendees}
+                  suggestions={memberNames}
+                  placeholder="이름 선택 또는 직접 입력"
                 />
               </div>
             </div>
@@ -201,10 +315,10 @@ export function NewDocumentModal({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isParsingFile}
-                  className="flex-1 min-h-[220px] w-full flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground transition-all disabled:opacity-60 text-center"
+                  className="flex-1 min-h-[130px] w-full flex flex-col items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground transition-all disabled:opacity-60 text-center"
                 >
-                  <div className="p-4 rounded-full bg-black/5 dark:bg-white/5">
-                    {isParsingFile ? <Loader2 className="w-6 h-6 animate-spin" /> : <Paperclip className="w-6 h-6" />}
+                  <div className="p-2.5 rounded-full bg-black/5 dark:bg-white/5">
+                    {isParsingFile ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                   </div>
                   <span className="font-medium text-sm">
                     {isParsingFile ? "파일에서 텍스트를 추출하는 중..." : fileName ? `${fileName} 첨부됨 (다시 선택하려면 클릭)` : "문서 파일 첨부"}
@@ -229,17 +343,17 @@ export function NewDocumentModal({
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   placeholder="회의 내용이나 기획 아이디어를 자유롭게 작성하거나, 왼쪽에서 파일을 첨부하면 여기에 자동으로 채워집니다."
-                  className="flex-1 min-h-[220px] w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm leading-relaxed"
+                  className="flex-1 min-h-[130px] w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm leading-relaxed"
                 />
               </div>
             </div>
           </form>
         </div>
 
-        <div className="flex justify-end gap-3 p-6 border-t border-border shrink-0 bg-black/5 dark:bg-white/5">
+        <div className="flex justify-end gap-3 p-5 border-t border-border shrink-0 bg-black/5 dark:bg-white/5">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onClose()}
             className="px-5 py-2.5 font-medium text-sm text-muted-foreground hover:bg-black/10 dark:hover:bg-white/10 rounded-lg transition-colors"
           >
             취소
@@ -247,7 +361,7 @@ export function NewDocumentModal({
           <button
             form="doc-form"
             type="submit"
-            disabled={isLoading || !title.trim() || !content.trim()}
+            disabled={isLoading || !content.trim() || (isCreatingNewProject && !newProjectName.trim())}
             className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-2.5 rounded-lg transition-colors text-sm font-medium shadow-lg shadow-primary/20 disabled:opacity-50"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

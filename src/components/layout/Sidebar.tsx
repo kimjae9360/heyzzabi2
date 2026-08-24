@@ -12,9 +12,10 @@ import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { useSidebar } from "@/components/layout/SidebarContext";
 import { useAuth } from "@/lib/auth";
+import { DevRoleToggle } from "@/components/layout/DevRoleToggle";
 
 const NAV_ITEMS = [
-  { href: "/", label: "HOME", icon: LayoutDashboard },
+  { href: "/", label: "대시보드", icon: LayoutDashboard },
   { href: "/documents", label: "문서생성", icon: FileText },
   { href: "/tasks", label: "업무관리", icon: Briefcase },
   { href: "/history", label: "히스토리", icon: History },
@@ -90,8 +91,10 @@ export function Sidebar() {
         </nav>
       </div>
 
-      {/* Footer: 프로필 / 설정 / 테마 / 로그아웃 */}
+      {/* Footer: DEV 롤 토글 / 프로필 / 설정 / 테마 / 로그아웃 */}
       <div className={cn("p-3 border-t border-white/5 flex flex-col gap-1", !isOpen && "items-center")}>
+        <DevRoleToggle isOpen={isOpen} />
+
         <div className={cn("flex items-center", isOpen ? "w-full gap-1" : "flex-col gap-1")}>
           <Link
             href="/profile"

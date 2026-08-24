@@ -60,9 +60,11 @@ export async function GET() {
     };
 
     // 5. Difficulty Completion
-    const difficulties = ["HIGH", "MEDIUM", "LOW"];
+    // 실제로 AI가 생성/저장하는 난이도 값은 "낮음"/"보통"/"높음"(한글)이다 — 예전엔 여기서
+    // "HIGH"/"MEDIUM"/"LOW"와 비교해서 AI가 만든 업무가 전부 통계에서 빠졌었다(QA에서 발견).
+    const difficulties = ["낮음", "보통", "높음"];
     const difficultyCompletion = difficulties.map(diff => {
-      const diffTasks = tasks.filter(t => t.difficulty?.toUpperCase() === diff);
+      const diffTasks = tasks.filter(t => t.difficulty === diff);
       const done = diffTasks.filter(t => t.status === "DONE").length;
       const total = diffTasks.length;
       return {

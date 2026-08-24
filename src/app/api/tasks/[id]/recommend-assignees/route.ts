@@ -20,11 +20,14 @@ export async function POST(
       return NextResponse.json({ error: "업무를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    // PM은 업무를 배정받는 대상이 아니라 배분을 승인하는 역할이므로 후보에서 제외한다
-    const members = await prisma.user.findMany({
+    // PM은 업무를 배정받는 대상이 아니라 배분을 승인하는 역할이므로 후보에서 제외한다.
+    // 아직 온보딩(첫 로그인)을 안 마친 계정은 name이 빈 문자열이라 후보로 추천해도 이름 없는
+    // 사람으로 뜨고 실제로 일을 시작할 수도 없으므로 같이 제외한다.
+    const membersRaw = await prisma.user.findMany({
       where: { status: "ACTIVE", role: "EMPLOYEE" },
       select: { id: true, name: true, techStack: true, certifications: true, pastProjects: true, department: true, jobTitle: true },
     });
+    const members = membersRaw.filter(m => m.name?.trim());
 
     // 현재 업무량: 진행 중 + 배분승인대기 상태의 업무 수 (FR-05-016 "현재 업무량")
     const activeCounts = await prisma.task.groupBy({

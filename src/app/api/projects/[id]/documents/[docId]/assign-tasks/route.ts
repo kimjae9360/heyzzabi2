@@ -17,6 +17,8 @@ export async function POST(
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { docId } = await params;
 
+    const doc = await prisma.projectDocument.findUnique({ where: { id: docId }, select: { proposalContent: true } });
+
     const tasks = await prisma.task.findMany({
       where: { sourceDocumentId: docId, assigneeId: null },
       orderBy: { createdAt: "asc" },
@@ -27,11 +29,13 @@ export async function POST(
 
     // PM은 업무를 배정받는 대상이 아니라 배분을 승인하는 역할이므로 후보에서 제외한다
     // (업무분배 탭의 담당자 재배정 드롭다운도 EMPLOYEE만 보여준다 — 후보 풀을 맞추지 않으면
-    // AI가 PM을 추천했을 때 그 드롭다운에 없는 값이 선택된 것처럼 보이는 문제가 생긴다)
-    const members = await prisma.user.findMany({
+    // AI가 PM을 추천했을 때 그 드롭다운에 없는 값이 선택된 것처럼 보이는 문제가 생긴다).
+    // 아직 온보딩 전이라 이름이 비어있는 계정도 제외한다(이름 없는 후보로 추천되면 UI에서 빈 옵션이 된다).
+    const membersRaw = await prisma.user.findMany({
       where: { status: "ACTIVE", role: "EMPLOYEE" },
       select: { id: true, name: true, techStack: true, certifications: true, pastProjects: true, department: true, jobTitle: true },
     });
+    const members = membersRaw.filter(m => m.name?.trim());
     const activeCounts = await prisma.task.groupBy({
       by: ["assigneeId"],
       _count: { assigneeId: true },
@@ -105,9 +109,25 @@ export async function POST(
       while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1);
       return next;
     };
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    while (today.getDay() === 0 || today.getDay() === 6) today.setDate(today.getDate() + 1);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    while (now.getDay() === 0 || now.getDay() === 6) now.setDate(now.getDate() + 1);
+
+    // 기획서 원본에 명시된 프로젝트 시작일이 있고 아직 안 지났으면 그날부터 잡는다(오늘이 아니라).
+    // 이미 지난 날짜라면(예: 프로젝트 기간이 이미 시작됨) 오늘부터 — 과거로 스케줄링하지 않는다.
+    let today = now;
+    try {
+      const proposal = doc?.proposalContent ? JSON.parse(doc.proposalContent) : null;
+      const specifiedStart: string | undefined = proposal?.projectPeriod?.start;
+      if (specifiedStart) {
+        const specified = new Date(specifiedStart);
+        specified.setHours(0, 0, 0, 0);
+        while (specified.getDay() === 0 || specified.getDay() === 6) specified.setDate(specified.getDate() + 1);
+        if (specified > now) today = specified;
+      }
+    } catch {
+      // 파싱 실패해도 오늘 날짜로 계속 진행 — 스케줄링 자체를 막을 이유는 아니다
+    }
 
     // 이 배치만 보고 오늘부터 다시 쌓으면, 이미 확정된 다른 업무와 일정이 겹칠 수 있다 —
     // 담당자별로 이미 배정된(진행중/배분승인대기) 업무의 가장 늦은 종료일 다음부터 이어서 쌓는다
@@ -127,7 +147,7 @@ export async function POST(
       const a = assignments.find(x => x.taskIndex === taskIndex);
       const candidate = a ? byCandidateIndex[a.candidateIndex] : undefined;
       if (!a || !candidate) {
-        return { taskId: task.id, title: task.title, difficulty: task.difficulty, estimatedHours: task.estimatedHours, suggestedAssigneeId: null, fitScore: null, techFit: null, workloadFit: null, experienceFit: null, suggestedWbsStart: null, suggestedWbsEnd: null };
+        return { taskId: task.id, title: task.title, difficulty: task.difficulty, difficultyReason: task.difficultyReason, estimatedHours: task.estimatedHours, suggestedAssigneeId: null, fitScore: null, techFit: null, workloadFit: null, experienceFit: null, suggestedWbsStart: null, suggestedWbsEnd: null };
       }
       const days = Math.max(1, Math.ceil((task.estimatedHours ?? 8) / 8));
       const start = cursorByAssignee[candidate.userId] ?? today;
@@ -143,6 +163,7 @@ export async function POST(
         taskId: task.id,
         title: task.title,
         difficulty: task.difficulty,
+        difficultyReason: task.difficultyReason,
         estimatedHours: task.estimatedHours,
         suggestedAssigneeId: candidate.userId,
         suggestedAssigneeName: candidate.name,

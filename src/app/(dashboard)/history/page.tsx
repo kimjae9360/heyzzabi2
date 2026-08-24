@@ -4,10 +4,17 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   History as HistoryIcon, FileText, ListTodo, Loader2, CheckCircle2, XCircle,
-  Clock, AlertCircle, FolderKanban, Bot, ChevronLeft, ChevronRight,
+  Clock, AlertCircle, FolderKanban, Bot, ChevronLeft, ChevronRight, X,
+  User as UserIcon, CalendarIcon, ExternalLink, Printer, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseProposalDoc } from "@/lib/documentTemplates";
+import { parseProposalDoc, parseReqSpecDoc } from "@/lib/documentTemplates";
+import { ProposalTemplate } from "@/components/documents/ProposalTemplate";
+import { ReqSpecTemplate } from "@/components/documents/ReqSpecTemplate";
+import { AgentBadge } from "@/components/ui/AgentBadge";
+import { exportProposalPptx } from "@/lib/exportProposalPptx";
+import { exportReqSpecPptx } from "@/lib/exportReqSpecPptx";
+import { exportReqSpecExcel } from "@/lib/exportReqSpecExcel";
 
 const STATUS_META: Record<string, { label: string; className: string; icon: any }> = {
   DRAFT: { label: "초안", className: "bg-muted text-muted-foreground", icon: FileText },
@@ -30,6 +37,11 @@ type ActivityItem = {
   status: string;
   rejectReason: string | null;
   updatedAt: string;
+  // 클릭했을 때 상세보기를 열기 위한 원본 엔티티 참조 — document 계열은 docId+docType,
+  // task 계열(agent-task 포함)은 taskId로 project.documents/project.tasks에서 원본을 다시 찾는다.
+  docId?: string;
+  docType?: "proposal" | "reqSpec";
+  taskId?: string;
 };
 
 const AGENT_KINDS: ActivityItem["kind"][] = ["agent-proposal", "agent-reqspec", "agent-task"];
@@ -39,6 +51,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "document" | "task" | "agent">("all");
   const [page, setPage] = useState(1);
+  const [selectedItem, setSelectedItem] = useState<ActivityItem | null>(null);
   const PAGE_SIZE = 10;
 
   useEffect(() => {
@@ -74,6 +87,8 @@ export default function HistoryPage() {
           status: doc.proposalStatus,
           rejectReason: doc.proposalRejectReason,
           updatedAt: doc.updatedAt,
+          docId: doc.id,
+          docType: "proposal",
         });
       }
       if (doc.reqSpecContent) {
@@ -85,6 +100,8 @@ export default function HistoryPage() {
           status: doc.reqSpecStatus,
           rejectReason: doc.reqSpecRejectReason,
           updatedAt: doc.updatedAt,
+          docId: doc.id,
+          docType: "reqSpec",
         });
       }
     }
@@ -98,6 +115,7 @@ export default function HistoryPage() {
         status: task.status,
         rejectReason: task.rejectReason,
         updatedAt: task.updatedAt,
+        taskId: task.id,
       });
 
       // 에이전트3(요구사항정의서 기반 업무 자동배분)이 만든 업무는 sourceDocumentId를 가진다 — 이를 근거로 역추적
@@ -110,6 +128,7 @@ export default function HistoryPage() {
           status: task.status,
           rejectReason: null,
           updatedAt: task.createdAt ?? task.updatedAt,
+          taskId: task.id,
         });
       }
     }
@@ -125,6 +144,8 @@ export default function HistoryPage() {
           status: doc.proposalStatus,
           rejectReason: null,
           updatedAt: doc.updatedAt,
+          docId: doc.id,
+          docType: "proposal",
         });
       }
       if (doc.reqSpecContent) {
@@ -136,6 +157,8 @@ export default function HistoryPage() {
           status: doc.reqSpecStatus,
           rejectReason: null,
           updatedAt: doc.updatedAt,
+          docId: doc.id,
+          docType: "reqSpec",
         });
       }
     }
@@ -226,7 +249,11 @@ export default function HistoryPage() {
             const isAgent = AGENT_KINDS.includes(item.kind);
             const KindIcon = isAgent ? Bot : item.kind === "task" ? ListTodo : FileText;
             return (
-              <div key={item.id} className="flex items-start gap-4 p-4 hover:bg-white/5 transition-colors">
+              <button
+                key={item.id}
+                onClick={() => setSelectedItem(item)}
+                className="w-full flex items-start gap-4 p-4 hover:bg-white/5 transition-colors text-left"
+              >
                 <div className={cn(
                   "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
                   isAgent ? "bg-primary/10" : "bg-black/5 dark:bg-white/5"
@@ -250,7 +277,7 @@ export default function HistoryPage() {
                   </span>
                   <span className="text-[11px] text-muted-foreground">{relativeTime(item.updatedAt)}</span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -286,6 +313,205 @@ export default function HistoryPage() {
           </button>
         </div>
       )}
+
+      {selectedItem && (
+        <HistoryDetailModal
+          item={selectedItem}
+          project={project}
+          onClose={() => setSelectedItem(null)}
+        />
+      )}
     </div>
   );
+}
+
+// 히스토리 목록에서 항목을 클릭했을 때 뜨는 상세보기 — 히스토리 자체는 과거 시점 스냅샷을 따로
+// 저장하지 않으므로(이벤트 로그 테이블이 없음), 그 항목이 가리키는 문서/업무의 "현재" 전체 내용을
+// 읽기 전용으로 보여준다. 실제로 고치려면 문서생성/업무관리로 이동해야 한다("~에서 열기" 링크).
+function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; project: any; onClose: () => void }) {
+  const isAgent = AGENT_KINDS.includes(item.kind);
+
+  // 문서 계열: 기획서/요구사항정의서 (+ 그걸 만든 에이전트 이벤트)
+  if (item.docId && item.docType) {
+    const doc = (project?.documents ?? []).find((d: any) => d.id === item.docId);
+    if (!doc) return null;
+    const status = item.docType === "proposal" ? doc.proposalStatus : doc.reqSpecStatus;
+    const rejectReason = item.docType === "proposal" ? doc.proposalRejectReason : doc.reqSpecRejectReason;
+    const content = item.docType === "proposal" ? doc.proposalContent : doc.reqSpecContent;
+    const meta = STATUS_META[status] ?? STATUS_META.DRAFT;
+    const parsedProposal = item.docType === "proposal" ? parseProposalDoc(content) : null;
+    const parsedReqSpec = item.docType === "reqSpec" ? parseReqSpecDoc(content) : null;
+    const dateLabel = new Date(doc.updatedAt).toLocaleDateString("ko-KR");
+
+    const handlePrint = () => window.print();
+    const handlePptx = async () => {
+      if (item.docType === "proposal" && parsedProposal) await exportProposalPptx(parsedProposal, doc.title);
+      else if (item.docType === "reqSpec" && parsedReqSpec) await exportReqSpecPptx(parsedReqSpec, doc.title);
+    };
+    const handleExcel = async () => {
+      if (parsedReqSpec) await exportReqSpecExcel(parsedReqSpec, doc.title);
+    };
+    const hasContent = !!(parsedProposal || parsedReqSpec);
+
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold">{doc.title}</h3>
+                <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", meta.className)}>
+                  <meta.icon className="w-3 h-3" /> {meta.label}
+                </span>
+                {isAgent && <AgentBadge agent={item.docType === "proposal" ? "proposal" : "reqSpec"} />}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {item.docType === "proposal" ? "기획서" : "요구사항정의서"}{isAgent && " · AI 에이전트가 생성"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href={`/documents?docId=${doc.id}&tab=${item.docType}`}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+              >
+                문서생성에서 열기 <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          {rejectReason && status === "REJECTED" && (
+            <div className="mx-5 mt-4 flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 shrink-0">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div><span className="font-semibold">반려 사유:</span> {rejectReason}</div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto p-5">
+            <div id="print-area" className="border border-white/10 rounded-xl overflow-hidden bg-black/5 dark:bg-black/20">
+              {parsedProposal ? (
+                <ProposalTemplate doc={parsedProposal} title={doc.title} dateLabel={dateLabel} />
+              ) : parsedReqSpec ? (
+                <ReqSpecTemplate doc={parsedReqSpec} title={doc.title} dateLabel={dateLabel} />
+              ) : (
+                <div className="p-10 text-center text-muted-foreground text-sm">아직 생성된 내용이 없습니다.</div>
+              )}
+            </div>
+          </div>
+
+          {hasContent && (
+            <div className="flex items-center gap-2 p-5 pt-0 shrink-0">
+              <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
+                <Printer className="w-3.5 h-3.5" /> PDF 다운로드
+              </button>
+              <button onClick={handlePptx} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
+                <Download className="w-3.5 h-3.5" /> PPTX 다운로드
+              </button>
+              {parsedReqSpec && (
+                <button onClick={handleExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
+                  <Download className="w-3.5 h-3.5" /> EXCEL 다운로드
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 업무 계열: 업무 배정/진행 (+ 요구사항정의서 기반 자동생성 에이전트 이벤트)
+  if (item.taskId) {
+    const task = (project?.tasks ?? []).find((t: any) => t.id === item.taskId);
+    if (!task) return null;
+    const meta = STATUS_META[task.status] ?? STATUS_META.BACKLOG;
+    let reason: any = null;
+    try { reason = task.assignmentReason ? JSON.parse(task.assignmentReason) : null; } catch {}
+
+    return (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold">{task.title}</h3>
+                <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", meta.className)}>
+                  <meta.icon className="w-3 h-3" /> {meta.label}
+                </span>
+                {isAgent && <AgentBadge agent="taskAssign" />}
+              </div>
+              <p className="text-xs text-muted-foreground">업무{isAgent && " · AI 에이전트가 배정"}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/tasks" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
+                업무관리에서 열기 <ExternalLink className="w-3.5 h-3.5" />
+              </Link>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            {task.description && <p className="text-muted-foreground whitespace-pre-wrap">{task.description}</p>}
+
+            {task.rejectReason && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div><span className="font-semibold">반려 사유:</span> {task.rejectReason}</div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><UserIcon className="w-3 h-3" /> 담당자</p>
+                <p className="font-semibold">{task.assignee?.name ?? "미배정"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">난이도 · 시간</p>
+                <p className="font-semibold">{task.difficulty} · {task.estimatedHours ?? "-"}h</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> 일정</p>
+                <p className="font-semibold">
+                  {task.wbsStart && task.wbsEnd ? `${new Date(task.wbsStart).toLocaleDateString("ko-KR")} ~ ${new Date(task.wbsEnd).toLocaleDateString("ko-KR")}` : "미정"}
+                </p>
+              </div>
+            </div>
+
+            {task.difficultyReason && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">난이도 산정 근거</p>
+                <p className="text-muted-foreground">{task.difficultyReason}</p>
+              </div>
+            )}
+
+            {reason && (
+              <div className="border border-white/10 rounded-xl p-3 space-y-1.5">
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-primary" /> AI 배정 근거 (적합도 {reason.fitScore}점)
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 pl-4 list-disc">
+                  <li>기술 적합도: {reason.techFit ?? "-"}</li>
+                  <li>업무 여유도: {reason.workloadFit ?? "-"}</li>
+                  <li>유사 경험: {reason.experienceFit ?? "-"}</li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

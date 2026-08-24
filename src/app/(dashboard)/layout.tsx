@@ -3,7 +3,6 @@
 import { MobileNav } from "@/components/layout/MobileNav";
 import { SidebarProvider } from "@/components/layout/SidebarContext";
 import { DashboardContent } from "@/components/layout/DashboardContent";
-import { DevRoleToggle } from "@/components/layout/DevRoleToggle";
 import { useAuth } from "@/lib/auth";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -35,7 +34,6 @@ export default function DashboardLayout({
           {children}
         </DashboardContent>
         <MobileNav />
-        <DevRoleToggle />
       </div>
     </SidebarProvider>
   );

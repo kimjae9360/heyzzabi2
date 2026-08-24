@@ -18,7 +18,7 @@ export async function POST(request: Request) {
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
         tasks: {
-          create: tasks.map((t: any) => ({
+          create: (tasks || []).map((t: any) => ({
             title: t.title,
             description: t.description,
             difficulty: t.difficulty || "MEDIUM",

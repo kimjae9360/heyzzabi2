@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { KanbanBoard } from "@/components/layout/KanbanBoard";
 
-type User = { id: string; name: string; email: string };
+type User = { id: string; name: string; email: string; role: string };
 type Task = {
   id: string; title: string; description: string | null;
   status: string; difficulty: string; progress: number;
@@ -55,7 +55,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       fetch(`/api/users`).then(r => r.json())
     ]).then(([projRes, usersRes]) => {
       if (projRes.success) setProject(projRes.data);
-      if (usersRes.success) setUsers(usersRes.data);
+      // 칸반의 담당자 드롭다운에는 실제로 업무를 받을 수 있는 사람만 나와야 한다 —
+      // PM은 배정 대상이 아니고, 온보딩 전이라 이름이 비어있는 계정도 빈 옵션으로 보이니 제외한다.
+      if (usersRes.success) setUsers(usersRes.data.filter((u: User) => u.role !== "PM" && u.name?.trim()));
       setLoading(false);
     }).catch(e => {
       console.error(e);

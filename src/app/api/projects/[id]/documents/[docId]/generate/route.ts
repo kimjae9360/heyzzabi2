@@ -17,7 +17,11 @@ export async function POST(
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { docId } = await params;
     const body = await request.json();
-    const { type } = body; // 'proposal' | 'reqSpec'
+    const { type, autoApprove } = body; // 'proposal' | 'reqSpec'
+    // PM이 직접 에이전트를 실행하는 경우: PM에게 다시 검토요청을 보내는 건 의미가 없으므로
+    // 검토 단계 없이 바로 승인 상태로 만든다(FR-05-021과 같은 원칙 — 이미 근거를 보고 본인이 확정하는 것).
+    // 일반유저가 실행하면 여전히 PM 검토가 필요하므로 DRAFT로 둔다.
+    const resultStatus = autoApprove ? "APPROVED" : "DRAFT";
 
     const doc = await prisma.projectDocument.findUnique({
       where: { id: docId }
@@ -41,8 +45,10 @@ export async function POST(
               "당신은 전문 서비스 기획자입니다. 제공된 회의록/메모를 기반으로 '프로젝트 기획서' 초안 1개를 작성합니다.\n\n" +
               NO_HALLUCINATION_RULE + "\n\n" +
               "다음 JSON 스키마로만 응답하라 (다른 텍스트 금지):\n" +
-              `{"background": "배경 및 목적", "target": "타겟 사용자", "features": [{"name": "기능명", "description": "설명"}], "expectedEffect": "기대 효과", "milestones": [{"name": "마일스톤", "date": "날짜/시기"}]}\n` +
-              "원본에 일정 관련 언급이 없으면 milestones는 빈 배열로 둔다. features는 원본에서 확인되는 기능만 포함한다."
+              `{"background": "배경 및 목적", "target": "타겟 사용자", "features": [{"name": "기능명", "description": "설명"}], "expectedEffect": "기대 효과", "milestones": [{"name": "마일스톤", "date": "날짜/시기"}], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
+              "원본에 일정 관련 언급이 없으면 milestones는 빈 배열로 둔다. features는 원본에서 확인되는 기능만 포함한다. " +
+              "원본에 '프로젝트 기간' 또는 명확한 시작일~종료일이 YYYY-MM-DD 형식으로 명시된 경우에만 projectPeriod를 채우고, " +
+              "그렇지 않으면 start와 end 모두 빈 문자열로 둔다(추측하거나 오늘 날짜로 채우지 마라)."
           },
           { role: "user", content: doc.rawContent }
         ],
@@ -55,12 +61,12 @@ export async function POST(
         // (재)생성 시 이전 승인/반려 상태는 의미가 없어짐 — 초기화
         data: {
           proposalContent: JSON.stringify(proposalDoc),
-          proposalStatus: "DRAFT",
+          proposalStatus: resultStatus,
           proposalRejectReason: null,
         }
       });
 
-      return NextResponse.json({ content: proposalDoc });
+      return NextResponse.json({ content: proposalDoc, status: resultStatus });
     } else if (type === "reqSpec") {
       if (!doc.proposalContent) return NextResponse.json({ error: "기획서가 없습니다." }, { status: 400 });
       if (doc.proposalStatus !== "APPROVED") {
@@ -93,12 +99,12 @@ export async function POST(
         where: { id: doc.id },
         data: {
           reqSpecContent: JSON.stringify(reqSpecDoc),
-          reqSpecStatus: "DRAFT",
+          reqSpecStatus: resultStatus,
           reqSpecRejectReason: null,
         }
       });
 
-      return NextResponse.json({ content: reqSpecDoc });
+      return NextResponse.json({ content: reqSpecDoc, status: resultStatus });
     }
 
     return NextResponse.json({ error: "type은 proposal 또는 reqSpec이어야 합니다." }, { status: 400 });

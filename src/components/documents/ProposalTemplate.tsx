@@ -28,6 +28,29 @@ export function ProposalTemplate({
       <div className="text-center border-b-2 border-black pb-6 mb-8">
         <h1 className="text-3xl font-bold">{title}</h1>
         <p className="text-sm text-gray-500 mt-2">작성일 {dateLabel}</p>
+        {/* 원본에 명시된 프로젝트 기간 — 업무분배 탭에서 오늘 날짜 대신 이 시작일부터 WBS 일정을 잡는 데 쓰인다 */}
+        {editable ? (
+          <div className="flex items-center justify-center gap-2 mt-3 text-sm">
+            <span className="text-gray-500">프로젝트 기간</span>
+            <input
+              type="date"
+              value={doc.projectPeriod?.start ?? ""}
+              onChange={e => set("projectPeriod", { start: e.target.value, end: doc.projectPeriod?.end ?? "" })}
+              className={`${inputCls} w-auto`}
+            />
+            <span className="text-gray-400">~</span>
+            <input
+              type="date"
+              value={doc.projectPeriod?.end ?? ""}
+              onChange={e => set("projectPeriod", { start: doc.projectPeriod?.start ?? "", end: e.target.value })}
+              className={`${inputCls} w-auto`}
+            />
+          </div>
+        ) : (doc.projectPeriod?.start || doc.projectPeriod?.end) ? (
+          <p className="text-sm text-gray-500 mt-1">
+            프로젝트 기간 {doc.projectPeriod.start || "?"} ~ {doc.projectPeriod.end || "?"}
+          </p>
+        ) : null}
       </div>
 
       <Section num="1" title="배경 및 목적">

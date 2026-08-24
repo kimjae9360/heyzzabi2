@@ -12,6 +12,14 @@ export type ProposalMilestone = {
   date: string;
 };
 
+// 원본(회의록/메모)에 "프로젝트 기간: 2026-08-25 ~ 2026-10-24" 처럼 명시적인 기간이 있으면 추출해둔다.
+// 업무분배 탭에서 이 값이 있으면 오늘 날짜 대신 여기서부터 WBS 일정을 잡는다. 원본에 언급이 없으면
+// start/end 모두 빈 문자열 — AI가 지어내지 않는다(절대 규칙).
+export type ProjectPeriod = {
+  start: string; // YYYY-MM-DD, 없으면 ""
+  end: string; // YYYY-MM-DD, 없으면 ""
+};
+
 // FR-03-004 / FR-05-006 기획서 템플릿: 배경 및 목적 / 타겟 사용자 / 주요 기능 / 기대 효과 / (선택) 일정
 export type ProposalDoc = {
   background: string;
@@ -19,6 +27,7 @@ export type ProposalDoc = {
   features: ProposalFeature[];
   expectedEffect: string;
   milestones: ProposalMilestone[]; // 원본에 일정 언급이 없으면 빈 배열
+  projectPeriod?: ProjectPeriod;
 };
 
 export type ProposalDraftOption = {

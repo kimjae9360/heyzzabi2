@@ -2,19 +2,23 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
   FileText, Plus, Bot, Loader2, Send, CheckCircle2, XCircle,
   AlertCircle, Clock, RotateCcw, MessageSquare, X, FolderKanban,
-  Download, Printer, Trash2, Save, ChevronDown, Pencil,
+  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewDocumentModal } from "@/components/projects/NewDocumentModal";
 import { ProposalTemplate } from "@/components/documents/ProposalTemplate";
 import { ReqSpecTemplate } from "@/components/documents/ReqSpecTemplate";
 import { exportProposalPptx } from "@/lib/exportProposalPptx";
+import { exportReqSpecPptx } from "@/lib/exportReqSpecPptx";
+import { exportReqSpecExcel } from "@/lib/exportReqSpecExcel";
 import { parseProposalDoc, parseReqSpecDoc } from "@/lib/documentTemplates";
 import { TaskAssignmentPanel } from "@/components/documents/TaskAssignmentPanel";
+import { AgentBadge } from "@/components/ui/AgentBadge";
 
 type DocType = "proposal" | "reqSpec";
 type PipelineTab = DocType | "taskAssignment";
@@ -39,6 +43,11 @@ const STATUS_META: Record<string, { label: string; className: string; icon: any 
   REJECTED: { label: "반려됨", className: "bg-red-500/10 text-red-500", icon: XCircle },
 };
 
+// 검토요청(PENDING_REVIEW) 중이거나 이미 승인(APPROVED)돼 다음 단계의 근거가 된 문서는 삭제하면 안 된다.
+// 검토요청 전(DRAFT)이거나 반려(REJECTED)된 상태 — 즉 아직 아무 데도 걸려있지 않은 상태에서만 삭제 가능.
+const isDocDeletable = (doc: ProjectDocument) =>
+  [doc.proposalStatus, doc.reqSpecStatus].every(s => s === "DRAFT" || s === "REJECTED");
+
 const TAB_LABEL: Record<DocType, string> = { proposal: "기획서", reqSpec: "요구사항정의서" };
 const PIPELINE_TAB_LABEL: Record<PipelineTab, string> = { proposal: "기획서", reqSpec: "요구사항정의서", taskAssignment: "업무분배" };
 const TASK_ASSIGN_META = {
@@ -53,11 +62,31 @@ const REASON_FIELD: Record<DocType, "proposalRejectReason" | "reqSpecRejectReaso
 export default function DocumentsPage() {
   const { user } = useAuth();
   const isPM = user?.role === "PM";
+  const searchParams = useSearchParams();
 
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<PipelineTab>("proposal");
+  const [activeTab, setActiveTabState] = useState<PipelineTab>("proposal");
+  // 다른 탭 갔다가 문서생성으로 돌아와도 마지막에 보던 하위 탭이 그대로 보이도록 localStorage에 기억해둔다.
+  // 서버 렌더링 시점엔 localStorage가 없으므로 마운트 후에만 복원한다(그래야 하이드레이션도 안전함).
+  useEffect(() => {
+    const saved = localStorage.getItem("hz_documents_tab") as PipelineTab | null;
+    if (saved === "proposal" || saved === "reqSpec" || saved === "taskAssignment") setActiveTabState(saved);
+  }, []);
+  const setActiveTab = (tab: PipelineTab) => {
+    setActiveTabState(tab);
+    localStorage.setItem("hz_documents_tab", tab);
+  };
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  // 히스토리 등 다른 화면에서 "문서생성에서 열기"로 넘어올 때 ?docId=...&tab=... 쿼리로
+  // 특정 문서·탭을 바로 열어준다. localStorage로 복원한 탭보다 이 쪽이 우선한다(방금 클릭한 의도이므로).
+  useEffect(() => {
+    const docIdParam = searchParams.get("docId");
+    const tabParam = searchParams.get("tab") as PipelineTab | null;
+    if (docIdParam) setSelectedDocId(docIdParam);
+    if (tabParam === "proposal" || tabParam === "reqSpec" || tabParam === "taskAssignment") setActiveTabState(tabParam);
+  }, [searchParams]);
   const [newDocModalOpen, setNewDocModalOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null); // action key currently in flight
   const [rejectModal, setRejectModal] = useState<{ docId: string; type: DocType } | null>(null);
@@ -65,9 +94,16 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchProject = async () => {
+  // preferredId가 있으면 그 프로젝트를 바로 보여준다(예: 문서 작성 모달에서 새 프로젝트를 만든 직후) —
+  // 없으면 기존처럼 가장 최근(첫 번째) 프로젝트를 기본으로 본다(단일 프로젝트 전제).
+  const fetchProject = async (preferredId?: string) => {
     setLoading(true);
     try {
+      if (preferredId) {
+        const detailRes = await fetch(`/api/projects/${preferredId}`);
+        const detail = await detailRes.json();
+        if (detail.success) { setProject(detail.data); return; }
+      }
       const listRes = await fetch("/api/projects");
       const list = await listRes.json();
       const projects = Array.isArray(list) ? list : list.data || [];
@@ -75,7 +111,6 @@ export default function DocumentsPage() {
         setProject(null);
         return;
       }
-      // Single-project assumption: 문서생성은 항상 첫 번째(유일한) 프로젝트를 기준으로 진행합니다.
       const detailRes = await fetch(`/api/projects/${projects[0].id}`);
       const detail = await detailRes.json();
       if (detail.success) setProject(detail.data);
@@ -108,23 +143,26 @@ export default function DocumentsPage() {
   const handleGenerate = async (doc: ProjectDocument, type: DocType) => {
     setBusy(`${doc.id}-generate-${type}`);
     try {
+      // PM이 직접 에이전트를 실행하면 자기 자신에게 검토요청을 보내는 게 의미가 없으므로 바로 승인 처리한다.
+      // 일반유저가 실행하면 지금처럼 PM 검토가 필요하다.
       const res = await fetch(`/api/projects/${project.id}/documents/${doc.id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type, autoApprove: isPM }),
       });
       const data = await res.json();
       if (res.ok) {
+        const resultStatus = isPM ? "APPROVED" : "DRAFT";
         if (type === "proposal") {
           patchDoc(doc.id, {
             proposalContent: JSON.stringify(data.content),
-            proposalStatus: "DRAFT",
+            proposalStatus: resultStatus,
             proposalRejectReason: null,
           });
         } else {
           patchDoc(doc.id, {
             reqSpecContent: JSON.stringify(data.content),
-            reqSpecStatus: "DRAFT",
+            reqSpecStatus: resultStatus,
             reqSpecRejectReason: null,
           });
         }
@@ -233,17 +271,19 @@ export default function DocumentsPage() {
     }
   };
 
-  // 반려된 기획서/요구사항정의서를 AI 재생성 없이 직접 고쳐서 저장 — 재생성과 마찬가지로
-  // 저장하면 DRAFT로 돌아가고 반려 사유는 지워져서 다시 검토요청할 수 있는 상태가 된다.
+  // 반려된 기획서/요구사항정의서를 AI 재생성 없이 직접 고쳐서 저장 — 일반유저는 재생성과 마찬가지로
+  // DRAFT로 돌아가 다시 검토요청해야 하고, PM이 직접 고친 거라면(자기 자신에게 검토요청할 필요가
+  // 없으므로) 바로 승인 상태로 확정된다. 반려 사유는 둘 다 지워진다.
   const handleSaveDocContent = async (doc: ProjectDocument, type: DocType, content: string) => {
     setBusy(`${doc.id}-save-content-${type}`);
+    const resultStatus = isPM ? "APPROVED" : "DRAFT";
     try {
       const res = await fetch(`/api/projects/${project.id}/documents/${doc.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [CONTENT_FIELD[type]]: content,
-          [STATUS_FIELD[type]]: "DRAFT",
+          [STATUS_FIELD[type]]: resultStatus,
           [REASON_FIELD[type]]: null,
         }),
       });
@@ -251,11 +291,30 @@ export default function DocumentsPage() {
       if (data.success) {
         patchDoc(doc.id, {
           [CONTENT_FIELD[type]]: content,
-          [STATUS_FIELD[type]]: "DRAFT",
+          [STATUS_FIELD[type]]: resultStatus,
           [REASON_FIELD[type]]: null,
         } as Partial<ProjectDocument>);
       } else {
         alert(data.error || "저장에 실패했습니다.");
+      }
+    } catch {
+      alert("네트워크 오류가 발생했습니다.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // 승인된 요구사항정의서를 근거로 업무를 자동 추출 — 여기서 만들어진 업무들이 "업무분배" 탭에 뜬다
+  const handleGenerateTasks = async (doc: ProjectDocument) => {
+    setBusy(`${doc.id}-tasks-reqSpec`);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/documents/${doc.id}/extract-tasks`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        await fetchProject(project.id);
+        setActiveTab("taskAssignment");
+      } else {
+        alert(data.error || "업무 생성에 실패했습니다.");
       }
     } catch {
       alert("네트워크 오류가 발생했습니다.");
@@ -333,7 +392,9 @@ export default function DocumentsPage() {
                     ? TASK_ASSIGN_META.ASSIGNED
                     : TASK_ASSIGN_META.NEEDS_ASSIGNMENT;
                 } else {
-                  meta = STATUS_META[doc[STATUS_FIELD[activeTab]]];
+                  // API가 상태값을 검증하지 않아 이론상 STATUS_META에 없는 값이 저장될 수 있다 —
+                  // 그런 경우에도 페이지 전체가 죽지 않도록 방어적으로 DRAFT로 대체한다.
+                  meta = STATUS_META[doc[STATUS_FIELD[activeTab]]] ?? STATUS_META.DRAFT;
                 }
                 const Icon = meta.icon;
                 return (
@@ -353,9 +414,15 @@ export default function DocumentsPage() {
                       </span>
                     </button>
                     <button
-                      onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
-                      title="문서 삭제"
-                      className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      onClick={() => isDocDeletable(doc) && setDeleteTarget({ id: doc.id, title: doc.title })}
+                      disabled={!isDocDeletable(doc)}
+                      title={isDocDeletable(doc) ? "문서 삭제" : "검토 요청 중이거나 승인된 문서는 삭제할 수 없습니다"}
+                      className={cn(
+                        "shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all",
+                        isDocDeletable(doc)
+                          ? "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                          : "text-muted-foreground/30 cursor-not-allowed"
+                      )}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -372,35 +439,61 @@ export default function DocumentsPage() {
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
               왼쪽에서 문서를 선택하거나 새로 등록해주세요.
             </div>
-          ) : activeTab === "taskAssignment" ? (
-            <TaskAssignmentPanel
-              doc={selectedDoc}
-              tasks={(project.tasks ?? []).filter((t: any) => t.sourceDocumentId === selectedDoc.id)}
-              isPM={isPM}
-              projectId={project.id}
-              onRefresh={fetchProject}
-            />
           ) : (
-            <DocDetail
-              doc={selectedDoc}
-              type={activeTab}
-              isPM={isPM}
-              busy={busy}
-              onGenerate={() => handleGenerate(selectedDoc, activeTab)}
-              onSubmitReview={() => handleSubmitReview(selectedDoc, activeTab)}
-              onApprove={() => handleApprove(selectedDoc, activeTab)}
-              onReject={() => setRejectModal({ docId: selectedDoc.id, type: activeTab })}
-              onSaveRawContent={(rawContent) => handleSaveRawContent(selectedDoc, rawContent)}
-              onSaveDocContent={(content) => handleSaveDocContent(selectedDoc, activeTab, content)}
-            />
+            // 세 탭을 조건부 렌더링(삼항연산자로 갈아끼우기)하면 탭을 옮길 때마다 컴포넌트가 완전히
+            // unmount됐다가 다시 mount되면서 그 안의 로컬 상태(예: 업무분배 탭의 AI 추천 결과 draft,
+            // 아직 저장 안 한 원본 회의록 편집 등)가 통째로 날아간다 — 실제로 이 문제로 AI 추천 배정
+            // 결과가 사라지는 버그가 보고됐다. 세 패널을 전부 항상 mount해두고 CSS로만 숨겨서,
+            // 안 보이는 탭의 상태도 그대로 유지되게 한다.
+            <>
+              <div className={activeTab === "taskAssignment" ? "" : "hidden"}>
+                <TaskAssignmentPanel
+                  doc={selectedDoc}
+                  tasks={(project.tasks ?? []).filter((t: any) => t.sourceDocumentId === selectedDoc.id)}
+                  isPM={isPM}
+                  projectId={project.id}
+                  onRefresh={fetchProject}
+                />
+              </div>
+              <div className={activeTab === "proposal" ? "" : "hidden"}>
+                <DocDetail
+                  doc={selectedDoc}
+                  type="proposal"
+                  isPM={isPM}
+                  busy={busy}
+                  onGenerate={() => handleGenerate(selectedDoc, "proposal")}
+                  onSubmitReview={() => handleSubmitReview(selectedDoc, "proposal")}
+                  onApprove={() => handleApprove(selectedDoc, "proposal")}
+                  onReject={() => setRejectModal({ docId: selectedDoc.id, type: "proposal" })}
+                  onSaveRawContent={(rawContent) => handleSaveRawContent(selectedDoc, rawContent)}
+                  onSaveDocContent={(content) => handleSaveDocContent(selectedDoc, "proposal", content)}
+                  onGenerateTasks={() => handleGenerateTasks(selectedDoc)}
+                />
+              </div>
+              <div className={activeTab === "reqSpec" ? "" : "hidden"}>
+                <DocDetail
+                  doc={selectedDoc}
+                  type="reqSpec"
+                  isPM={isPM}
+                  busy={busy}
+                  onGenerate={() => handleGenerate(selectedDoc, "reqSpec")}
+                  onSubmitReview={() => handleSubmitReview(selectedDoc, "reqSpec")}
+                  onApprove={() => handleApprove(selectedDoc, "reqSpec")}
+                  onReject={() => setRejectModal({ docId: selectedDoc.id, type: "reqSpec" })}
+                  onSaveRawContent={(rawContent) => handleSaveRawContent(selectedDoc, rawContent)}
+                  onSaveDocContent={(content) => handleSaveDocContent(selectedDoc, "reqSpec", content)}
+                  onGenerateTasks={() => handleGenerateTasks(selectedDoc)}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>
 
       {newDocModalOpen && (
         <NewDocumentModal
-          projectId={project.id}
-          onClose={() => { setNewDocModalOpen(false); fetchProject(); }}
+          defaultProjectId={project?.id}
+          onClose={(createdProjectId) => { setNewDocModalOpen(false); fetchProject(createdProjectId); }}
         />
       )}
 
@@ -468,18 +561,21 @@ export default function DocumentsPage() {
 }
 
 function DocDetail({
-  doc, type, isPM, busy, onGenerate, onSubmitReview, onApprove, onReject, onSaveRawContent, onSaveDocContent,
+  doc, type, isPM, busy, onGenerate, onSubmitReview, onApprove, onReject, onSaveRawContent, onSaveDocContent, onGenerateTasks,
 }: {
   doc: ProjectDocument; type: DocType; isPM: boolean; busy: string | null;
   onGenerate: () => void;
   onSubmitReview: () => void; onApprove: () => void; onReject: () => void;
   onSaveRawContent: (rawContent: string) => void;
   onSaveDocContent: (content: string) => void;
+  onGenerateTasks: () => void;
 }) {
   const content = doc[CONTENT_FIELD[type]];
   const status = doc[STATUS_FIELD[type]];
   const reason = doc[REASON_FIELD[type]];
-  const meta = STATUS_META[status];
+  // API가 상태값을 검증하지 않아 이론상 STATUS_META에 없는 값이 저장될 수 있다(QA에서 실제로 발견됨) —
+  // 그런 경우에도 화면이 죽지 않도록 DRAFT로 방어적으로 대체한다.
+  const meta = STATUS_META[status] ?? STATUS_META.DRAFT;
   const canGenerateReqSpec = type === "reqSpec" ? doc.proposalStatus === "APPROVED" : true;
   const dateLabel = new Date(doc.updatedAt).toLocaleDateString("ko-KR");
 
@@ -488,9 +584,21 @@ function DocDetail({
   const handlePrint = () => window.print();
 
   const handlePptx = async () => {
-    const parsed = parseProposalDoc(doc.proposalContent);
+    if (type === "proposal") {
+      const parsed = parseProposalDoc(doc.proposalContent);
+      if (!parsed) return;
+      await exportProposalPptx(parsed, doc.title);
+    } else {
+      const parsed = parseReqSpecDoc(doc.reqSpecContent);
+      if (!parsed) return;
+      await exportReqSpecPptx(parsed, doc.title);
+    }
+  };
+
+  const handleExcel = async () => {
+    const parsed = parseReqSpecDoc(doc.reqSpecContent);
     if (!parsed) return;
-    await exportProposalPptx(parsed, doc.title);
+    await exportReqSpecExcel(parsed, doc.title);
   };
 
   // 원본 회의록/메모는 문서를 옮겨다녀도(doc.id 변경) 이전 문서의 미저장 편집분이 남지 않도록
@@ -499,11 +607,6 @@ function DocDetail({
   useEffect(() => { setRawDraft(doc.rawContent ?? ""); }, [doc.id]);
   const rawDirty = rawDraft !== (doc.rawContent ?? "");
   const rawSaving = busy === busyKey("save-raw");
-
-  // 기획서 생성 전에는 원본을 펼쳐서 보여주고, 생성되고 나면 접어서 기획서에 집중하게 한다.
-  // doc.id가 바뀌거나 방금 생성이 끝나 content가 생기면 이 기본값으로 다시 맞춘다.
-  const [rawExpanded, setRawExpanded] = useState(!content);
-  useEffect(() => { setRawExpanded(!content); }, [doc.id, !!content]);
 
   // 반려된 문서를 AI 재생성 없이 직접 고쳐 쓰는 모드 — 문서를 옮기면 편집 중이던 내용은 버린다.
   const [editMode, setEditMode] = useState(false);
@@ -521,6 +624,27 @@ function DocDetail({
     setEditMode(false);
   };
 
+  // 잠긴 상태에서도 내용 자체는 볼 수 있어야 하므로, 수정은 막되 펼쳐서 전체를 확인하는 건 허용한다.
+  // 기본은 접어서(h-20) 자리를 적게 차지하다가, 필요할 때만 펼친다(h-64) — 수정 가능 여부와는 별개.
+  const [rawLockedExpanded, setRawLockedExpanded] = useState(false);
+  useEffect(() => { setRawLockedExpanded(false); }, [doc.id]);
+
+  // 검토요청(PENDING_REVIEW) 이후 ~ 승인(APPROVED) 상태에서는 원본 회의록을 잠근다 —
+  // 이미 그 내용을 근거로 기획서가 만들어져 검토에 들어간 상태라, 뒤에서 원본이 바뀌면 안 된다.
+  // PM이 반려하면 다시 풀려서 수정할 수 있고, 그때 기획서 에이전트도 다시 실행할 수 있다.
+  const rawLocked = status === "PENDING_REVIEW" || status === "APPROVED";
+
+  // 요구사항정의서 탭 상단에 보여줄 기획서 원본 참고 박스 — 기본은 접어두고 필요할 때만 펼친다
+  const [proposalRefOpen, setProposalRefOpen] = useState(false);
+  useEffect(() => { setProposalRefOpen(false); }, [doc.id]);
+  const proposalMeta = STATUS_META[doc.proposalStatus] ?? STATUS_META.DRAFT;
+  const REQSPEC_BLOCK_MESSAGE: Record<string, string> = {
+    DRAFT: "기획서가 아직 작성 중입니다. 기획서를 검토요청하고 승인받아야 요구사항정의서를 생성할 수 있습니다.",
+    PENDING_REVIEW: "기획서가 아직 검토요청 중입니다. PM 승인 후 요구사항정의서를 생성할 수 있습니다.",
+    REJECTED: "기획서가 반려되었습니다. 기획서를 다시 작성해 승인받아야 합니다.",
+    APPROVED: "",
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -530,21 +654,68 @@ function DocDetail({
         </span>
       </div>
 
-      {/* 요구사항정의서 탭에서는 기획서 산출물에 집중하도록 원본 회의록을 아예 보여주지 않는다.
-          기획서 탭에서는 생성 전엔 펼쳐서, 생성 후엔 접어서 보여준다(rawExpanded).
-          직접 수정 가능하도록 textarea로 변경 — 원본 내용과 달라졌을 때만 저장 버튼이 활성화된다 */}
+      {/* 반려 사유는 제일 먼저 눈에 띄어야(뭘 고쳐야 하는지 알아야 원본을 고치든 직접수정을 하든 할 테니) 맨 위에 둔다 */}
+      {reason && status === "REJECTED" && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div><span className="font-semibold">반려 사유:</span> {reason}</div>
+        </div>
+      )}
+
+      {/* 요구사항정의서 탭에서는 원본 회의록 대신, 이 문서가 근거로 삼는 기획서 원본을 접었다 폈다 볼 수 있게 보여준다.
+          기획서가 아직 승인 전이면 지금 상태(작성중/검토중/반려)를 배지로 함께 보여준다. */}
+      {type === "reqSpec" && (
+        <div className="text-sm">
+          <button
+            type="button"
+            onClick={() => setProposalRefOpen(v => !v)}
+            className="w-full flex items-center justify-between gap-2 text-muted-foreground font-medium hover:text-foreground transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <ChevronDown className={cn("w-4 h-4 transition-transform", !proposalRefOpen && "-rotate-90")} />
+              기획서 원본
+            </span>
+            <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", proposalMeta.className)}>
+              <proposalMeta.icon className="w-3 h-3" /> {proposalMeta.label}
+            </span>
+          </button>
+          {proposalRefOpen && (
+            <div className="mt-2 border border-white/10 rounded-xl overflow-hidden max-h-64 overflow-y-auto bg-black/5 dark:bg-black/20">
+              {parseProposalDoc(doc.proposalContent) ? (
+                <ProposalTemplate doc={parseProposalDoc(doc.proposalContent)!} title={doc.title} dateLabel={dateLabel} />
+              ) : (
+                <div className="p-6 text-center text-muted-foreground text-xs">기획서 내용이 없습니다.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 기획서 탭: 검토요청(PENDING_REVIEW) ~ 승인(APPROVED) 사이에는 원본이 잠기고 작게 줄어든다 —
+          이미 그 내용으로 기획서가 만들어져 검토 중이므로 뒤에서 바뀌면 안 되기 때문. PM이 반려하면
+          다시 풀리고 원래 크기(h-64)로 돌아와 수정할 수 있다. 직접 수정 가능하도록 textarea로 작성됨 —
+          원본 내용과 달라졌을 때만 저장 버튼이 활성화된다. */}
       {type === "proposal" && (
         <div className="text-sm">
           <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onClick={() => setRawExpanded(v => !v)}
-              className="flex items-center gap-1.5 text-muted-foreground font-medium hover:text-foreground transition-colors"
-            >
-              <ChevronDown className={cn("w-4 h-4 transition-transform", !rawExpanded && "-rotate-90")} />
+            <p className="text-muted-foreground font-medium flex items-center gap-1.5">
               원본 회의록 / 메모
-            </button>
-            {rawDirty && rawExpanded && (
+              {rawLocked && (
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                  <Lock className="w-3 h-3" /> 검토 중에는 수정할 수 없습니다
+                </span>
+              )}
+            </p>
+            {rawLocked ? (
+              <button
+                type="button"
+                onClick={() => setRawLockedExpanded(v => !v)}
+                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", !rawLockedExpanded && "-rotate-90")} />
+                {rawLockedExpanded ? "접기" : "펼쳐보기"}
+              </button>
+            ) : rawDirty && (
               <button
                 onClick={() => onSaveRawContent(rawDraft)}
                 disabled={rawSaving}
@@ -555,21 +726,18 @@ function DocDetail({
               </button>
             )}
           </div>
-          {rawExpanded && (
-            <textarea
-              value={rawDraft}
-              onChange={e => setRawDraft(e.target.value)}
-              placeholder="내용이 없습니다."
-              className="w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap h-64 overflow-y-auto text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          )}
-        </div>
-      )}
-
-      {reason && status === "REJECTED" && (
-        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          <div><span className="font-semibold">반려 사유:</span> {reason}</div>
+          <textarea
+            value={rawDraft}
+            onChange={e => !rawLocked && setRawDraft(e.target.value)}
+            readOnly={rawLocked}
+            placeholder="내용이 없습니다."
+            className={cn(
+              "w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap overflow-y-auto text-muted-foreground resize-none focus:outline-none transition-all",
+              rawLocked
+                ? cn("cursor-default", rawLockedExpanded ? "h-64" : "h-20")
+                : "h-64 focus:ring-2 focus:ring-primary/40"
+            )}
+          />
         </div>
       )}
 
@@ -594,7 +762,7 @@ function DocDetail({
           ) : (
             <div className="p-10 text-center text-muted-foreground text-sm">
               {!canGenerateReqSpec
-                ? "기획서가 승인되면 요구사항정의서를 생성할 수 있습니다."
+                ? REQSPEC_BLOCK_MESSAGE[doc.proposalStatus] || "기획서가 승인되면 요구사항정의서를 생성할 수 있습니다."
                 : `AI가 아직 ${TAB_LABEL[type]}를 생성하지 않았습니다.`}
             </div>
           )}
@@ -608,22 +776,27 @@ function DocDetail({
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
               <Printer className="w-3.5 h-3.5" /> PDF 다운로드
             </button>
-            {type === "proposal" && (
-              <button onClick={handlePptx} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
-                <Download className="w-3.5 h-3.5" /> PPTX 다운로드
+            <button onClick={handlePptx} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
+              <Download className="w-3.5 h-3.5" /> PPTX 다운로드
+            </button>
+            {type === "reqSpec" && (
+              <button onClick={handleExcel} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
+                <Download className="w-3.5 h-3.5" /> EXCEL 다운로드
               </button>
             )}
           </div>
         )}
 
-        {!content && canGenerateReqSpec && !isPM && (
+        {/* 문서를 누가 만들었든(PM 포함) 그 자리에서 바로 AI 에이전트를 실행할 수 있어야 하므로 역할 제한을 두지 않는다 */}
+        {!content && canGenerateReqSpec && (
           <button
             onClick={onGenerate}
             disabled={busy === busyKey("generate")}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
           >
             {busy === busyKey("generate") ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-            {type === "proposal" ? "AI로 기획서 생성" : "AI로 요구사항정의서 생성"}
+            {type === "proposal" ? "기획서 생성" : "요구사항정의서 생성"}
+            <AgentBadge agent={type} />
           </button>
         )}
 
@@ -638,7 +811,7 @@ function DocDetail({
           </button>
         )}
 
-        {content && !isPM && status === "REJECTED" && !editMode && (
+        {content && status === "REJECTED" && !editMode && (
           <>
             <button
               onClick={startEdit}
@@ -652,7 +825,8 @@ function DocDetail({
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 text-sm font-bold hover:bg-red-500/20 disabled:opacity-50"
             >
               {busy === busyKey("generate") ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-              다시 생성하기
+              {type === "proposal" ? "기획서 재생성" : "요구사항정의서 재생성"}
+              <AgentBadge agent={type} />
             </button>
           </>
         )}
@@ -700,6 +874,19 @@ function DocDetail({
               승인
             </button>
           </>
+        )}
+
+        {/* 요구사항정의서가 승인되면 PM이 다음 단계(업무분배)로 넘어갈 업무를 자동 추출할 수 있다 */}
+        {type === "reqSpec" && status === "APPROVED" && isPM && (
+          <button
+            onClick={onGenerateTasks}
+            disabled={busy === busyKey("tasks")}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy === busyKey("tasks") ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+            업무분배 실행
+            <AgentBadge agent="taskAssign" />
+          </button>
         )}
 
       </div>
