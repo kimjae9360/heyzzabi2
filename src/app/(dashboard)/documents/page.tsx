@@ -343,7 +343,7 @@ export default function DocumentsPage() {
         </p>
         {isPM && (
           <Link href="/project/new" className="inline-block mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
-            AI 마법사로 첫 프로젝트 만들기
+            첫 프로젝트 만들기
           </Link>
         )}
       </div>

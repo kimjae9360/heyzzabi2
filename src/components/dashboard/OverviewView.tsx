@@ -206,7 +206,7 @@ export default function OverviewView() {
                   href="/project/new"
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-xs font-semibold transition-colors"
                 >
-                  <PlusCircle className="w-4 h-4" /> 새 프로젝트 (AI)
+                  <PlusCircle className="w-4 h-4" /> 새 프로젝트
                 </Link>
               )}
             </div>
@@ -216,7 +216,7 @@ export default function OverviewView() {
                 <p className="text-sm">{isPM ? "아직 프로젝트가 없습니다." : "아직 참여 중인 프로젝트가 없습니다."}</p>
                 {isPM && (
                   <Link href="/project/new" className="inline-block mt-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold">
-                    AI 마법사로 첫 프로젝트 만들기
+                    첫 프로젝트 만들기
                   </Link>
                 )}
               </div>
