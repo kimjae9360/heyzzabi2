@@ -8,6 +8,7 @@ import {
   User as UserIcon, CalendarIcon, ExternalLink, Printer, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { parseProposalDoc, parseReqSpecDoc } from "@/lib/documentTemplates";
 import { ProposalTemplate } from "@/components/documents/ProposalTemplate";
 import { ReqSpecTemplate } from "@/components/documents/ReqSpecTemplate";
@@ -59,6 +60,8 @@ const AGENT_ICON_CLASS: Record<AgentKind, string> = {
 };
 
 export default function HistoryPage() {
+  const { user } = useAuth();
+  const isPM = user?.role === "PM";
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "document" | "task" | "agent">("all");
@@ -211,7 +214,14 @@ export default function HistoryPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center gap-3">
         <FolderKanban className="w-10 h-10 text-muted-foreground/30" />
-        <p className="text-muted-foreground">아직 프로젝트가 없습니다.</p>
+        <p className="text-muted-foreground">
+          {isPM ? "아직 프로젝트가 없습니다. 먼저 프로젝트를 생성해주세요." : "아직 프로젝트가 없습니다. PM에게 프로젝트 생성을 요청해주세요."}
+        </p>
+        {isPM && (
+          <Link href="/project/new" className="inline-block mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+            첫 프로젝트 만들기
+          </Link>
+        )}
       </div>
     );
   }

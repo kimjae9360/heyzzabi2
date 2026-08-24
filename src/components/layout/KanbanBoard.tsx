@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MoreHorizontal, Plus, CheckCircle2, XCircle, UserPlus, Loader2, X, MessageSquare, Sparkles } from "lucide-react";
+import { MoreHorizontal, Plus, CheckCircle2, XCircle, UserPlus, Loader2, X, MessageSquare, Sparkles, ExternalLink } from "lucide-react";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { cn } from "@/lib/utils";
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { TaskDetailModal } from "../projects/TaskDetailModal";
 import { useAuth } from "@/lib/auth";
 
@@ -109,6 +110,17 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
 
       {task.status === "BACKLOG" && task.rejectReason && (
         <p className="text-[11px] text-red-400 mb-3 line-clamp-2">배분 반려됨: {task.rejectReason}</p>
+      )}
+
+      {/* 칸반에서 멈춰있는 걸 보고도 사이드바에서 승인함을 따로 찾아가야 했다 — 카드에서 바로 이동 */}
+      {task.status === "PENDING_APPROVAL" && (
+        <Link
+          href="/approvals"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 text-[11px] text-orange-500 hover:text-orange-400 font-medium mb-2"
+        >
+          <ExternalLink className="w-3 h-3" /> 승인함에서 보기
+        </Link>
       )}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-white/5 pt-3 mt-3">

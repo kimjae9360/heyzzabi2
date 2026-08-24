@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   FolderKanban, CalendarDays, Settings, Plus, MoreHorizontal,
-  Clock, CheckCircle2, PlayCircle, ShieldAlert,
+  Clock, CheckCircle2, PlayCircle, ShieldAlert, Lock,
   Loader2, Search, ArrowRight, User as UserIcon, CalendarIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -335,7 +335,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                             </select>
                           ) : (
-                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.assignee?.name || "담당자 없음"}</span>
+                            <span title="담당자 재배정은 PM만 할 수 있습니다" className="inline-flex items-center gap-1 px-1 py-1 text-xs text-muted-foreground">
+                              <Lock className="w-3 h-3 opacity-50" /> {task.assignee?.name || "담당자 없음"}
+                            </span>
                           )}
                         </td>
                         {/* 일정(WBS 시작/종료일) 조율도 PM의 권한 */}
@@ -348,7 +350,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
                             />
                           ) : (
-                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : "-"}</span>
+                            <span title="일정 조율은 PM만 할 수 있습니다" className="inline-flex items-center gap-1 px-1 py-1 text-xs text-muted-foreground">
+                              <Lock className="w-3 h-3 opacity-50" /> {task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : "-"}
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3">
@@ -360,7 +364,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
                             />
                           ) : (
-                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : "-"}</span>
+                            <span title="일정 조율은 PM만 할 수 있습니다" className="inline-flex items-center gap-1 px-1 py-1 text-xs text-muted-foreground">
+                              <Lock className="w-3 h-3 opacity-50" /> {task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : "-"}
+                            </span>
                           )}
                         </td>
                         {/* 진행률은 "내 업무"일 때만(+PM은 전체) 움직일 수 있다 — 예전엔 아무나 남의 업무
@@ -378,7 +384,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               <span className="text-xs w-8 text-right text-muted-foreground">{task.progress || 0}%</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2">
+                            <div title="본인이 담당한 업무만 진행률을 바꿀 수 있습니다" className="flex items-center gap-2">
+                              <Lock className="w-3 h-3 opacity-50 text-muted-foreground shrink-0" />
                               <div className="w-24 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
                                 <div className="h-full bg-muted-foreground/50 rounded-full" style={{ width: `${task.progress || 0}%` }} />
                               </div>

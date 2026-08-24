@@ -131,7 +131,21 @@ export default function DocumentsPage() {
 
   useEffect(() => { fetchProject(); }, []);
 
-  const documents: ProjectDocument[] = project?.documents ?? [];
+  // PM이 직접 생성하는 문서는 검토 없이 곧장 APPROVED로 넘어가므로(아래 handleGenerate의
+  // autoApprove 로직 참고), 목록에 DRAFT 단계로 남아있는 문서는 전부 아직 검토 요청 전인
+  // 다른 팀원의 작업 중 문서다. PM이 할 수 있는 액션이 없는 상태라 굳이 목록에 섞여있을
+  // 필요가 없어서 PM 화면에서는 제외한다(작성자 본인에게는 계속 보임).
+  const allDocuments: ProjectDocument[] = project?.documents ?? [];
+  const isVisibleToViewer = (d: ProjectDocument) => {
+    if (!isPM) return true;
+    const stage = stageOf(d);
+    // stage가 "taskAssignment"라는 것 자체가 이미 reqSpecStatus === APPROVED라는 뜻이라
+    // (stageOf 정의 참고) 그 경우도 reqSpecStatus 기준으로 판단하면 항상 DRAFT가 아니게 된다.
+    const status = stage === "proposal" ? d.proposalStatus : d.reqSpecStatus;
+    return status !== "DRAFT";
+  };
+  const documents: ProjectDocument[] = allDocuments.filter(isVisibleToViewer);
+  const hiddenDraftCount = allDocuments.length - documents.length;
   const selectedDoc = useMemo(
     () => documents.find(d => d.id === selectedDocId) ?? documents[0] ?? null,
     [documents, selectedDocId]
@@ -388,9 +402,10 @@ export default function DocumentsPage() {
   // 항상 승인됨이기도 함) — 태그 필터처럼 겹치는 걸 허용하고, 승인됨 중 업무 배분까지 끝난
   // 것만 더 좁혀 보고 싶을 때 쓰는 칩으로 승인됨 바로 다음에 둔다.
   const isTaskAssigned = (doc: ProjectDocument) => docStatusKey(doc) === "APPROVED" && taskAssignMetaFor(doc) === TASK_ASSIGN_META.ASSIGNED;
+  // PM 목록에는 DRAFT 문서 자체가 안 뜨니(위 isVisibleToViewer) "초안" 칩은 항상 0건이라 의미가 없다 — PM에게는 숨긴다.
   const DOC_FILTERS = [
     { key: "all" as const, label: "전체" },
-    { key: "DRAFT" as const, label: "초안" },
+    ...(isPM ? [] : [{ key: "DRAFT" as const, label: "초안" }]),
     { key: "PENDING_REVIEW" as const, label: "검토요청중" },
     { key: "APPROVED" as const, label: "승인됨" },
     { key: "TASK_ASSIGNED" as const, label: "배분완료" },
@@ -487,7 +502,11 @@ export default function DocumentsPage() {
 
           <div className="space-y-2">
             {documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-10">등록된 문서가 없습니다.<br />회의록을 등록하세요.</p>
+              <p className="text-sm text-muted-foreground text-center py-10">
+                {hiddenDraftCount > 0
+                  ? <>팀원이 작성 중인 초안 {hiddenDraftCount}건이 있지만, 아직 검토 요청 전이라 여기 표시되지 않습니다.</>
+                  : <>등록된 문서가 없습니다.<br />회의록을 등록하세요.</>}
+              </p>
             ) : filteredDocuments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-10">해당하는 문서가 없습니다.</p>
             ) : (
@@ -531,19 +550,22 @@ export default function DocumentsPage() {
                         {new Date(doc.meetingDate ?? doc.updatedAt).toLocaleDateString("ko-KR")}
                       </p>
                     </button>
-                    <button
-                      onClick={() => isDocDeletable(doc) && setDeleteTarget({ id: doc.id, title: doc.title })}
-                      disabled={!isDocDeletable(doc)}
-                      title={isDocDeletable(doc) ? "문서 삭제" : "검토 요청 중이거나 승인된 문서는 삭제할 수 없습니다"}
-                      className={cn(
-                        "shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all",
-                        isDocDeletable(doc)
-                          ? "text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-                          : "text-muted-foreground/30 cursor-not-allowed"
-                      )}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {isDocDeletable(doc) ? (
+                      <button
+                        onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
+                        title="문서 삭제"
+                        className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      // 휴지통 아이콘을 그냥 흐리게만 하면 hover했을 때 여전히 눌러도 될 것처럼 보이고,
+                      // 이유는 title 툴팁뿐이라 터치기기에선 아예 안 보인다 — 자물쇠 아이콘으로 바꿔서
+                      // hover 없이도(터치에서도) "지금 잠겨있다"는 상태 자체가 보이게 한다
+                      <div title="검토 요청 중이거나 승인된 문서는 삭제할 수 없습니다" className="shrink-0 p-1.5 text-muted-foreground/40">
+                        <Lock className="w-3.5 h-3.5" />
+                      </div>
+                    )}
                   </div>
                 );
               })
