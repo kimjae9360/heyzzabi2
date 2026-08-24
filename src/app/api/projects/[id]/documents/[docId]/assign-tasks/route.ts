@@ -25,8 +25,11 @@ export async function POST(
       return NextResponse.json({ error: "배정할 업무가 없습니다." }, { status: 400 });
     }
 
+    // PM은 업무를 배정받는 대상이 아니라 배분을 승인하는 역할이므로 후보에서 제외한다
+    // (업무분배 탭의 담당자 재배정 드롭다운도 EMPLOYEE만 보여준다 — 후보 풀을 맞추지 않으면
+    // AI가 PM을 추천했을 때 그 드롭다운에 없는 값이 선택된 것처럼 보이는 문제가 생긴다)
     const members = await prisma.user.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", role: "EMPLOYEE" },
       select: { id: true, name: true, techStack: true, certifications: true, pastProjects: true, department: true, jobTitle: true },
     });
     const activeCounts = await prisma.task.groupBy({
@@ -92,8 +95,10 @@ export async function POST(
     candidates.forEach(c => { byCandidateIndex[c.index] = c; });
 
     // WBS 일정: 결정적으로 계산 — 담당자별로 이번 배치에서 받은 업무를 순서대로 쌓고,
-    // estimatedHours(없으면 8시간=1일 가정)를 하루 8시간 기준 영업일수로 환산해 오늘부터 배치한다.
-    const cursorByAssignee: Record<string, Date> = {};
+    // estimatedHours(없으면 8시간=1일 가정)를 하루 8시간 기준 영업일수로 환산해 배치한다.
+    // 날짜만 의미가 있으므로 toISOString()(UTC 기준)을 쓰면 서버 타임존에 따라 하루가 밀릴 수 있다 —
+    // 항상 로컬 달력 기준 yyyy-mm-dd로 직접 포맷한다.
+    const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const nextBusinessDay = (d: Date) => {
       const next = new Date(d);
       next.setDate(next.getDate() + 1);
@@ -103,6 +108,20 @@ export async function POST(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     while (today.getDay() === 0 || today.getDay() === 6) today.setDate(today.getDate() + 1);
+
+    // 이 배치만 보고 오늘부터 다시 쌓으면, 이미 확정된 다른 업무와 일정이 겹칠 수 있다 —
+    // 담당자별로 이미 배정된(진행중/배분승인대기) 업무의 가장 늦은 종료일 다음부터 이어서 쌓는다
+    const existingSchedule = await prisma.task.groupBy({
+      by: ["assigneeId"],
+      _max: { wbsEnd: true },
+      where: { assigneeId: { not: null }, wbsEnd: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
+    });
+    const cursorByAssignee: Record<string, Date> = {};
+    existingSchedule.forEach(s => {
+      if (s.assigneeId && s._max.wbsEnd && s._max.wbsEnd >= today) {
+        cursorByAssignee[s.assigneeId] = nextBusinessDay(s._max.wbsEnd);
+      }
+    });
 
     const suggestions = tasks.map((task, taskIndex) => {
       const a = assignments.find(x => x.taskIndex === taskIndex);
@@ -131,8 +150,8 @@ export async function POST(
         techFit: a.techFit,
         workloadFit: a.workloadFit,
         experienceFit: a.experienceFit,
-        suggestedWbsStart: start.toISOString(),
-        suggestedWbsEnd: end.toISOString(),
+        suggestedWbsStart: toDateStr(start),
+        suggestedWbsEnd: toDateStr(end),
       };
     });
 

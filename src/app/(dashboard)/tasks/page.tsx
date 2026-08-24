@@ -85,22 +85,31 @@ export default function TasksPage() {
       });
       if (res.ok) {
         setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      } else {
+        alert("상태 변경에 실패했습니다.");
       }
+    } catch {
+      alert("네트워크 오류로 상태 변경에 실패했습니다.");
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleGitStatusChange = async (taskId: string, gitStatus: string) => {
+    const prevStatus = tasks.find(t => t.id === taskId)?.gitStatus;
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, gitStatus } : t));
     try {
-      await fetch(`/api/tasks/${taskId}`, {
+      const res = await fetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ gitStatus }),
       });
+      if (!res.ok) throw new Error("failed");
     } catch (e) {
       console.error(e);
+      // 저장 실패 시 화면이 실제 상태와 어긋난 채로 남지 않도록 되돌린다
+      if (prevStatus !== undefined) setTasks(prev => prev.map(t => t.id === taskId ? { ...t, gitStatus: prevStatus } : t));
+      alert("Git 상태 변경에 실패했습니다.");
     }
   };
 
@@ -123,6 +132,9 @@ export default function TasksPage() {
   // 탭·검색어가 바뀌면 목록이 통째로 달라지므로 페이지를 1로 되돌린다
   useEffect(() => { setPage(1); }, [filterScope, search, viewMode]);
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
+  // 위 리셋 대상이 아닌 다른 이유로 목록이 줄어들 수도 있으므로(다른 화면에서 상태 변경 후 재조회 등),
+  // 지금 페이지가 범위를 넘으면 마지막 페이지로 당겨서 빈 화면이 뜨지 않게 한다
+  useEffect(() => { setPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const pagedTasks = filteredTasks.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (

@@ -20,8 +20,9 @@ export async function POST(
       return NextResponse.json({ error: "업무를 찾을 수 없습니다." }, { status: 404 });
     }
 
+    // PM은 업무를 배정받는 대상이 아니라 배분을 승인하는 역할이므로 후보에서 제외한다
     const members = await prisma.user.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", role: "EMPLOYEE" },
       select: { id: true, name: true, techStack: true, certifications: true, pastProjects: true, department: true, jobTitle: true },
     });
 

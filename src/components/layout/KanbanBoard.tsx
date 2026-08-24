@@ -268,15 +268,16 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
 
   const handleAssign = async (taskId: string, userId: string) => {
     const selectedUser = members.find(m => m.id === userId);
+    // 수동으로 담당자를 바꾸는 것이므로, 이전 담당자에 대한 AI 배정 근거는 더 이상 유효하지 않다 — 함께 지운다
     setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, assigneeId: userId, assignee: selectedUser } : t
+      t.id === taskId ? { ...t, assigneeId: userId, assignee: selectedUser, assignmentReason: null } : t
     ));
 
     try {
       await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assigneeId: userId })
+        body: JSON.stringify({ assigneeId: userId, assignmentReason: null })
       });
     } catch (error) {
       console.error('Failed to assign task:', error);
@@ -342,10 +343,16 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
   const handleConfirmAssign = () => {
     if (!assignConfirm || !assignConfirm.assigneeId) return;
     const assignee = members.find(m => m.id === assignConfirm.assigneeId);
+    // 고른 담당자가 AI 추천 목록에 있던 사람이면 그 근거를 그대로 남기고, 직접 고른 사람이면(추천에 없던 사람) 지운다
+    const rec = aiRecs?.find(r => r.userId === assignConfirm.assigneeId);
+    const assignmentReason = rec
+      ? JSON.stringify({ fitScore: rec.fitScore, techFit: rec.techFit, workloadFit: rec.workloadFit, experienceFit: rec.experienceFit })
+      : null;
     commitStatusChange(assignConfirm.task.id, "PENDING_APPROVAL", {
       assigneeId: assignConfirm.assigneeId,
       assignee,
       rejectReason: null,
+      assignmentReason,
     });
     setAssignConfirm(null);
   };

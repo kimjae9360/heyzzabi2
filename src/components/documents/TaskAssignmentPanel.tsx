@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Bot, Loader2, ChevronDown, UserIcon, CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,13 +18,12 @@ type Task = {
   assignmentReason: string | null;
 };
 
-type Candidate = { userId: string; name: string; currentActiveTasks: number };
+type Member = { id: string; name: string };
 
 type Suggestion = {
   taskId: string;
   title: string;
   suggestedAssigneeId: string | null;
-  suggestedAssigneeName?: string;
   fitScore: number | null;
   techFit: string | null;
   workloadFit: string | null;
@@ -50,6 +49,12 @@ type GanttItem = { id: string; title: string; assigneeName: string; wbsStart: st
 
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
+// assignmentReason은 검증 없는 자유 텍스트 컬럼이라, 이 화면이 쓴 게 아닌 값이 들어있을 가능성을 배제할 수 없다
+const parseReason = (raw: string | null) => {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+};
+
 export function TaskAssignmentPanel({
   doc, tasks, isPM, projectId, onRefresh,
 }: {
@@ -61,9 +66,19 @@ export function TaskAssignmentPanel({
 }) {
   const [generating, setGenerating] = useState(false);
   const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [candidateMeta, setCandidateMeta] = useState<Record<string, number>>({}); // userId -> currentActiveTasks
   const [confirming, setConfirming] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null);
   const [expandedReason, setExpandedReason] = useState<string | null>(null);
+
+  // 담당자 변경 드롭다운에 쓸 팀원 목록은 배정 실행 여부와 무관하게 항상 필요하다
+  useEffect(() => {
+    fetch("/api/users").then(r => r.json()).then(json => {
+      const active = (json.data ?? []).filter((u: any) => u.role === "EMPLOYEE" && u.status === "ACTIVE");
+      setMembers(active.map((u: any) => ({ id: u.id, name: u.name })));
+    }).catch(() => {});
+  }, []);
 
   if (doc.reqSpecStatus !== "APPROVED") {
     return (
@@ -88,7 +103,9 @@ export function TaskAssignmentPanel({
       const data = await res.json();
       if (!res.ok) { alert(data.error || "배정 추천 생성에 실패했습니다."); return; }
 
-      setCandidates(data.candidates ?? []);
+      const meta: Record<string, number> = {};
+      (data.candidates ?? []).forEach((c: any) => { meta[c.userId] = c.currentActiveTasks; });
+      setCandidateMeta(meta);
       setDrafts(
         (data.suggestions as Suggestion[]).map(s => ({
           taskId: s.taskId,
@@ -139,11 +156,26 @@ export function TaskAssignmentPanel({
     }
   };
 
+  // 확정된 업무의 담당자를 나중에 바꾸는 경우 — 근거는 그 담당자를 고른 이유가 아니게 되므로 함께 지운다
+  const reassign = async (taskId: string, assigneeId: string) => {
+    setReassigning(taskId);
+    try {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assigneeId: assigneeId || null, assignmentReason: null }),
+      });
+      onRefresh();
+    } finally {
+      setReassigning(null);
+    }
+  };
+
   // 리뷰 중(제안값 편집 화면)
   if (drafts) {
     const ganttItems: GanttItem[] = drafts
       .filter(d => d.assigneeId && d.wbsStart && d.wbsEnd)
-      .map(d => ({ id: d.taskId, title: d.title, assigneeName: candidates.find(c => c.userId === d.assigneeId)?.name ?? "미배정", wbsStart: d.wbsStart, wbsEnd: d.wbsEnd }));
+      .map(d => ({ id: d.taskId, title: d.title, assigneeName: members.find(m => m.id === d.assigneeId)?.name ?? "미배정", wbsStart: d.wbsStart, wbsEnd: d.wbsEnd }));
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
@@ -167,10 +199,14 @@ export function TaskAssignmentPanel({
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setExpandedReason(v => v === d.taskId ? null : d.taskId)}
-                        className="flex items-center gap-1 font-semibold hover:text-primary transition-colors"
+                        disabled={!d.techFit}
+                        className="flex items-start gap-1 font-semibold hover:text-primary transition-colors text-left disabled:cursor-default disabled:hover:text-foreground"
                       >
-                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0", expandedReason !== d.taskId && "-rotate-90")} />
-                        {d.title}
+                        {d.techFit && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== d.taskId && "-rotate-90")} />}
+                        <span>
+                          {d.title}
+                          {d.techFit && <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{d.techFit}</span>}
+                        </span>
                       </button>
                     </td>
                     <td className="px-4 py-3">
@@ -179,9 +215,9 @@ export function TaskAssignmentPanel({
                         onChange={e => updateDraft(d.taskId, { assigneeId: e.target.value })}
                         className="w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
                       >
-                        <option value="">미배정</option>
-                        {candidates.map(c => (
-                          <option key={c.userId} value={c.userId}>{c.name} (진행중 {c.currentActiveTasks}건)</option>
+                        <option value="" className="bg-background text-foreground">미배정</option>
+                        {members.map(m => (
+                          <option key={m.id} value={m.id} className="bg-background text-foreground">{m.name}{candidateMeta[m.id] != null ? ` (진행중 ${candidateMeta[m.id]}건)` : ""}</option>
                         ))}
                       </select>
                     </td>
@@ -241,7 +277,7 @@ export function TaskAssignmentPanel({
   if (tasks.length === 0 || unassigned.length > 0) {
     return (
       <div className="space-y-5">
-        {tasks.length > 0 && <AssignedList tasks={tasks} expandedReason={expandedReason} setExpandedReason={setExpandedReason} />}
+        {tasks.length > 0 && <AssignedList tasks={tasks} members={members} isPM={isPM} expandedReason={expandedReason} setExpandedReason={setExpandedReason} reassign={reassign} reassigning={reassigning} />}
         {isPM ? (
           <div className="p-10 text-center border border-dashed border-white/10 rounded-xl">
             <Bot className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
@@ -267,13 +303,14 @@ export function TaskAssignmentPanel({
   }
 
   // 전부 배정 완료
-  return <AssignedList tasks={tasks} expandedReason={expandedReason} setExpandedReason={setExpandedReason} />;
+  return <AssignedList tasks={tasks} members={members} isPM={isPM} expandedReason={expandedReason} setExpandedReason={setExpandedReason} reassign={reassign} reassigning={reassigning} />;
 }
 
 function AssignedList({
-  tasks, expandedReason, setExpandedReason,
+  tasks, members, isPM, expandedReason, setExpandedReason, reassign, reassigning,
 }: {
-  tasks: Task[]; expandedReason: string | null; setExpandedReason: (v: string | null) => void;
+  tasks: Task[]; members: Member[]; isPM: boolean; expandedReason: string | null; setExpandedReason: (v: string | null) => void;
+  reassign: (taskId: string, assigneeId: string) => void; reassigning: string | null;
 }) {
   const assigned = tasks.filter(t => t.assigneeId);
   if (assigned.length === 0) return null;
@@ -284,84 +321,112 @@ function AssignedList({
 
   return (
     <div className="space-y-4">
-    <GanttChart items={ganttItems} />
-    <div className="border border-white/10 rounded-xl overflow-hidden">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs text-muted-foreground uppercase bg-black/5 dark:bg-white/5">
-          <tr>
-            <th className="px-4 py-3 font-bold">업무명</th>
-            <th className="px-4 py-3 font-bold w-32">담당자</th>
-            <th className="px-4 py-3 font-bold w-40">일정</th>
-            <th className="px-4 py-3 font-bold w-28">상태</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/5">
-          {assigned.map(t => {
-            const reason = t.assignmentReason ? JSON.parse(t.assignmentReason) : null;
-            return (
-              <Fragment key={t.id}>
-                <tr className="align-top">
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setExpandedReason(expandedReason === t.id ? null : t.id)}
-                      className="flex items-center gap-1 font-semibold hover:text-primary transition-colors disabled:cursor-default"
-                      disabled={!reason}
-                    >
-                      {reason && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0", expandedReason !== t.id && "-rotate-90")} />}
-                      {t.title}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <UserIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                      <span className="text-xs font-medium">{t.assignee?.name}</span>
-                      {reason?.fitScore != null && (
-                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{reason.fitScore}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {t.wbsStart && t.wbsEnd ? (
-                      <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {new Date(t.wbsStart).toLocaleDateString()} ~ {new Date(t.wbsEnd).toLocaleDateString()}</span>
-                    ) : "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{t.status}</span>
-                  </td>
-                </tr>
-                {expandedReason === t.id && reason && (
-                  <tr className="bg-black/[0.02] dark:bg-white/[0.02]">
-                    <td colSpan={4} className="px-4 pb-3 pt-0">
-                      <ul className="text-xs text-muted-foreground space-y-1 pl-5">
-                        <li>🛠 기술 적합도: {reason.techFit ?? "-"}</li>
-                        <li>📊 업무 여유도: {reason.workloadFit ?? "-"}</li>
-                        <li>📁 유사 경험: {reason.experienceFit ?? "-"}</li>
-                      </ul>
+      <GanttChart items={ganttItems} />
+      <div className="border border-white/10 rounded-xl overflow-hidden">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-muted-foreground uppercase bg-black/5 dark:bg-white/5">
+            <tr>
+              <th className="px-4 py-3 font-bold">업무명 / 배정 근거</th>
+              <th className="px-4 py-3 font-bold w-44">담당자</th>
+              <th className="px-4 py-3 font-bold w-40">일정</th>
+              <th className="px-4 py-3 font-bold w-28">상태</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5">
+            {assigned.map(t => {
+              const reason = parseReason(t.assignmentReason);
+              return (
+                <Fragment key={t.id}>
+                  <tr className="align-top">
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => setExpandedReason(expandedReason === t.id ? null : t.id)}
+                        className="flex items-start gap-1 font-semibold hover:text-primary transition-colors text-left disabled:cursor-default disabled:hover:text-foreground"
+                        disabled={!reason}
+                      >
+                        {reason && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== t.id && "-rotate-90")} />}
+                        <span>
+                          {t.title}
+                          {reason?.techFit ? (
+                            <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{reason.techFit}</span>
+                          ) : (
+                            <span className="block text-xs font-normal text-muted-foreground/60 mt-0.5">배정 근거 없음(수동 변경됨)</span>
+                          )}
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {isPM ? (
+                          <select
+                            value={t.assigneeId ?? ""}
+                            onChange={e => reassign(t.id, e.target.value)}
+                            disabled={reassigning === t.id}
+                            className="w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+                          >
+                            <option value="" className="bg-background text-foreground">미배정</option>
+                            {members.map(m => (
+                              <option key={m.id} value={m.id} className="bg-background text-foreground">{m.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <UserIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span className="text-xs font-medium">{t.assignee?.name ?? "미배정"}</span>
+                          </div>
+                        )}
+                        {reason?.fitScore != null && (
+                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full shrink-0">{reason.fitScore}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {t.wbsStart && t.wbsEnd ? (
+                        <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {new Date(t.wbsStart).toLocaleDateString()} ~ {new Date(t.wbsEnd).toLocaleDateString()}</span>
+                      ) : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{t.status}</span>
                     </td>
                   </tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                  {expandedReason === t.id && reason && (
+                    <tr className="bg-black/[0.02] dark:bg-white/[0.02]">
+                      <td colSpan={4} className="px-4 pb-3 pt-0">
+                        <ul className="text-xs text-muted-foreground space-y-1 pl-5">
+                          <li>🛠 기술 적합도: {reason.techFit ?? "-"}</li>
+                          <li>📊 업무 여유도: {reason.workloadFit ?? "-"}</li>
+                          <li>📁 유사 경험: {reason.experienceFit ?? "-"}</li>
+                        </ul>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
 
-// 담당자별로 업무 막대를 타임라인 위에 배치하는 가벼운 간트 차트 —
-// 드래그로 일정을 조정하는 편집형 간트는 아니고, 배정 결과를 한눈에 보여주는 용도
+// 담당자별로 업무 막대를 타임라인 위에 배치하는 가벼운 간트 차트 — 드래그로 일정을 조정하는
+// 편집형 간트는 아니고, 배정 결과를 한눈에 보여주는 용도. 눈금 그리드로 날짜를 바로 읽을 수 있게 하고,
+// 짧은(하루짜리) 막대는 안에 라벨이 안 들어가므로 막대 오른쪽 바깥에 라벨을 띄운다.
 function GanttChart({ items }: { items: GanttItem[] }) {
   if (items.length === 0) return null;
 
   const starts = items.map(i => new Date(i.wbsStart).getTime());
-  const ends = items.map(i => new Date(i.wbsEnd).getTime());
+  const endsRaw = items.map(i => new Date(i.wbsEnd).getTime());
   const rangeStart = Math.min(...starts);
-  const rangeEnd = Math.max(...ends);
-  const totalMs = Math.max(1, rangeEnd - rangeStart);
+  // 전부 하루짜리 업무면 범위가 0이 되어 나눗셈이 깨지므로 최소 하루는 확보
+  const rangeEnd = Math.max(Math.max(...endsRaw), rangeStart + 86400000);
+  const totalMs = rangeEnd - rangeStart;
   const pct = (ms: number) => ((ms - rangeStart) / totalMs) * 100;
   const fmt = (ms: number) => new Date(ms).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+
+  const TICKS = 6;
+  const ticks = Array.from({ length: TICKS + 1 }, (_, i) => rangeStart + (totalMs * i) / TICKS);
 
   const byAssignee = new Map<string, GanttItem[]>();
   items.forEach(i => {
@@ -369,39 +434,60 @@ function GanttChart({ items }: { items: GanttItem[] }) {
     byAssignee.get(i.assigneeName)!.push(i);
   });
 
+  const rows: { label: string | null; item: GanttItem }[] = [];
+  byAssignee.forEach((personItems, name) => {
+    personItems.forEach((item, idx) => rows.push({ label: idx === 0 ? name : null, item }));
+  });
+
   return (
-    <div className="border border-white/10 rounded-xl p-4 space-y-4">
-      <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground px-1">
-        <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {fmt(rangeStart)}</span>
-        <span>{fmt(rangeEnd)}</span>
-      </div>
-      <div className="space-y-3">
-        {Array.from(byAssignee.entries()).map(([name, personItems]) => (
-          <div key={name} className="space-y-1">
-            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
-              <UserIcon className="w-3 h-3" /> {name}
-            </p>
-            <div className="space-y-1">
-              {personItems.map(item => {
-                const s = new Date(item.wbsStart).getTime();
-                const e = new Date(item.wbsEnd).getTime();
-                const left = pct(s);
-                const width = Math.max(pct(e) - left, 2);
-                return (
-                  <div key={item.id} className="relative h-6 bg-black/5 dark:bg-white/5 rounded-md">
-                    <div
-                      title={`${item.title} · ${fmt(s)} ~ ${fmt(e)}`}
-                      className="absolute top-0 h-full rounded-md flex items-center px-2 bg-primary/80 hover:bg-primary transition-colors overflow-hidden"
-                      style={{ left: `${left}%`, width: `${width}%` }}
-                    >
-                      <span className="text-[10px] font-semibold text-primary-foreground truncate">{item.title}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+    <div className="border border-white/10 rounded-xl p-4 overflow-x-auto">
+      <div className="min-w-[600px] grid gap-y-2" style={{ gridTemplateColumns: "96px 1fr" }}>
+        <div />
+        <div className="relative h-4">
+          {ticks.map((t, i) => (
+            <span
+              key={i}
+              className="absolute text-[10px] font-semibold text-muted-foreground whitespace-nowrap"
+              style={{ left: `${(i / TICKS) * 100}%`, transform: i === 0 ? "translateX(0)" : i === TICKS ? "translateX(-100%)" : "translateX(-50%)" }}
+            >
+              {fmt(t)}
+            </span>
+          ))}
+        </div>
+        {rows.map(({ label, item }) => {
+          const s = new Date(item.wbsStart).getTime();
+          const e = new Date(item.wbsEnd).getTime();
+          const left = pct(s);
+          const width = Math.max(pct(e) - left, 2);
+          const narrow = width < 16;
+          return (
+            <Fragment key={item.id}>
+              <p className="text-xs font-bold text-muted-foreground flex items-center gap-1 truncate pt-1">
+                {label && (<><UserIcon className="w-3 h-3 shrink-0" /><span className="truncate">{label}</span></>)}
+              </p>
+              <div className="relative h-6">
+                {ticks.map((t, ti) => (
+                  <div key={ti} className="absolute top-0 bottom-0 w-px bg-white/10" style={{ left: `${(ti / TICKS) * 100}%` }} />
+                ))}
+                <div
+                  title={`${item.title} · ${fmt(s)} ~ ${fmt(e)}`}
+                  className="absolute top-0 h-full rounded-md flex items-center px-2 bg-primary/80 hover:bg-primary transition-colors overflow-hidden"
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                >
+                  {!narrow && <span className="text-[10px] font-semibold text-primary-foreground truncate">{item.title}</span>}
+                </div>
+                {narrow && (
+                  <span
+                    className="absolute top-1/2 -translate-y-1/2 text-[10px] font-medium text-foreground whitespace-nowrap pointer-events-none"
+                    style={{ left: `calc(${left}% + ${width}% + 6px)` }}
+                  >
+                    {item.title}
+                  </span>
+                )}
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );

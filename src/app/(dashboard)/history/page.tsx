@@ -154,6 +154,8 @@ export default function HistoryPage() {
   useEffect(() => { setPage(1); }, [filter]);
 
   const totalPages = Math.max(1, Math.ceil(activity.length / PAGE_SIZE));
+  // 필터가 아닌 다른 이유로 목록이 줄어들 수도 있으므로, 지금 페이지가 범위를 넘으면 마지막 페이지로 당긴다
+  useEffect(() => { setPage(p => Math.min(p, totalPages)); }, [totalPages]);
   const pagedActivity = activity.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const relativeTime = (dateStr: string) => {
