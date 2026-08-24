@@ -50,7 +50,7 @@ const isDocDeletable = (doc: ProjectDocument) =>
   [doc.proposalStatus, doc.reqSpecStatus].every(s => s === "DRAFT" || s === "REJECTED");
 
 const TAB_LABEL: Record<DocType, string> = { proposal: "기획서", reqSpec: "요구사항정의서" };
-const PIPELINE_TAB_LABEL: Record<PipelineTab, string> = { proposal: "기획서", reqSpec: "요구사항정의서", taskAssignment: "업무분배" };
+const PIPELINE_TAB_LABEL: Record<PipelineTab, string> = { proposal: "기획서", reqSpec: "요구사항정의서", taskAssignment: "업무 배분" };
 const TASK_ASSIGN_META = {
   NOT_GENERATED: { label: "미생성", className: "bg-muted text-muted-foreground", icon: FileText },
   NEEDS_ASSIGNMENT: { label: "배분 필요", className: "bg-orange-500/10 text-orange-500", icon: Clock },
@@ -100,7 +100,7 @@ export default function DocumentsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED">("all");
+  const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "TASK_ASSIGNED" | "REJECTED">("all");
 
   // preferredId가 있으면 그 프로젝트를 바로 보여준다(예: 문서 작성 모달에서 새 프로젝트를 만든 직후) —
   // 없으면 기존처럼 가장 최근(첫 번째) 프로젝트를 기본으로 본다(단일 프로젝트 전제).
@@ -384,11 +384,16 @@ export default function DocumentsPage() {
     const stage = stageOf(doc);
     return stage === "taskAssignment" ? "APPROVED" : (doc[STATUS_FIELD[stage]] as any);
   };
+  // "배분완료"는 문서 상태(docStatusKey)와 별개 축이라 승인됨과 겹칠 수 있음(배분완료 문서는
+  // 항상 승인됨이기도 함) — 태그 필터처럼 겹치는 걸 허용하고, 승인됨 중 업무 배분까지 끝난
+  // 것만 더 좁혀 보고 싶을 때 쓰는 칩으로 승인됨 바로 다음에 둔다.
+  const isTaskAssigned = (doc: ProjectDocument) => docStatusKey(doc) === "APPROVED" && taskAssignMetaFor(doc) === TASK_ASSIGN_META.ASSIGNED;
   const DOC_FILTERS = [
     { key: "all" as const, label: "전체" },
     { key: "DRAFT" as const, label: "초안" },
     { key: "PENDING_REVIEW" as const, label: "검토요청중" },
     { key: "APPROVED" as const, label: "승인됨" },
+    { key: "TASK_ASSIGNED" as const, label: "배분완료" },
     { key: "REJECTED" as const, label: "반려됨" },
   ];
   const docFilterCounts = {
@@ -396,9 +401,10 @@ export default function DocumentsPage() {
     DRAFT: documents.filter(d => docStatusKey(d) === "DRAFT").length,
     PENDING_REVIEW: documents.filter(d => docStatusKey(d) === "PENDING_REVIEW").length,
     APPROVED: documents.filter(d => docStatusKey(d) === "APPROVED").length,
+    TASK_ASSIGNED: documents.filter(isTaskAssigned).length,
     REJECTED: documents.filter(d => docStatusKey(d) === "REJECTED").length,
   };
-  const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docStatusKey(d) === docFilter);
+  const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docFilter === "TASK_ASSIGNED" ? isTaskAssigned(d) : docStatusKey(d) === docFilter);
 
   const PIPELINE_STEPS: PipelineTab[] = ["proposal", "reqSpec", "taskAssignment"];
   const stepDone = (doc: ProjectDocument | null, step: PipelineTab): boolean => {
