@@ -47,6 +47,17 @@ export async function POST(
       return NextResponse.json({ error: "AI가 업무를 생성하지 못했습니다." }, { status: 500 });
     }
 
+    // 반려→직접수정→재승인 흐름 후 이 라우트가 다시 호출되면(이전엔 체크가 없어 중복 생성됐음),
+    // 같은 문서에서 이미 뽑아둔 업무가 있을 수 있다. 아직 아무도 손대지 않은(BACKLOG) 업무는
+    // 낡은 요구사항 기준이므로 새 세트로 교체하고, 이미 배정·진행됐거나 완료된 업무는 그 진행
+    // 상황을 잃으면 안 되므로 건드리지 않고 응답에 담아 화면에서 경고할 수 있게 한다.
+    const existingTasks = await prisma.task.findMany({ where: { sourceDocumentId: params.docId } });
+    const staleTasks = existingTasks.filter((t) => t.status !== "BACKLOG");
+    const replacedTaskIds = existingTasks.filter((t) => t.status === "BACKLOG").map((t) => t.id);
+    if (replacedTaskIds.length > 0) {
+      await prisma.task.deleteMany({ where: { id: { in: replacedTaskIds } } });
+    }
+
     const createdTasks = await Promise.all(
       tasksData.map((task) =>
         prisma.task.create({
@@ -67,7 +78,13 @@ export async function POST(
       )
     );
 
-    return NextResponse.json({ success: true, count: createdTasks.length, tasks: createdTasks });
+    return NextResponse.json({
+      success: true,
+      count: createdTasks.length,
+      tasks: createdTasks,
+      replacedCount: replacedTaskIds.length,
+      staleTasks: staleTasks.map((t) => ({ id: t.id, title: t.title, status: t.status })),
+    });
   } catch (error: any) {
     console.error("Task Extraction Error:", error);
     return NextResponse.json({ error: "업무 생성 실패: " + error.message }, { status: 500 });

@@ -311,8 +311,18 @@ export default function DocumentsPage() {
     }
   };
 
-  // 승인된 요구사항정의서를 근거로 업무를 자동 추출 — 여기서 만들어진 업무들이 "업무분배" 탭에 뜬다
+  // 승인된 요구사항정의서를 근거로 업무를 자동 추출 — 여기서 만들어진 업무들이 "업무분배" 탭에 뜬다.
+  // 반려→직접수정→재승인 흐름을 거치면 이 버튼을 다시 누를 수 있는 상태로 돌아오므로, 이미 이
+  // 문서에서 뽑아둔 업무가 있으면 재추출이 무엇을 바꾸는지 먼저 알려준다(API가 실제 교체/보존은 처리함).
   const handleGenerateTasks = async (doc: ProjectDocument) => {
+    const existingCount = (project?.tasks ?? []).filter((t: any) => t.sourceDocumentId === doc.id).length;
+    if (existingCount > 0) {
+      const proceed = confirm(
+        `이미 이 요구사항정의서에서 추출된 업무 ${existingCount}건이 있습니다.\n아직 배정 전(대기)인 업무는 새 내용으로 교체되고, 이미 진행 중이거나 완료된 업무는 그대로 유지됩니다.\n계속할까요?`
+      );
+      if (!proceed) return;
+    }
+
     setBusy(`${doc.id}-tasks-reqSpec`);
     try {
       const res = await fetch(`/api/projects/${project.id}/documents/${doc.id}/extract-tasks`, { method: "POST" });
@@ -320,6 +330,9 @@ export default function DocumentsPage() {
       if (res.ok) {
         await fetchProject(project.id);
         setActiveTab("taskAssignment");
+        if (data.staleTasks?.length > 0) {
+          alert(`이미 진행 중이거나 완료된 업무 ${data.staleTasks.length}건은 예전 요구사항 기준 그대로 남아있습니다. 필요하면 업무분배 탭에서 직접 확인해주세요.`);
+        }
       } else {
         alert(data.error || "업무 생성에 실패했습니다.");
       }
