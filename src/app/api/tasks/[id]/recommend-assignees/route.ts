@@ -33,10 +33,11 @@ export async function POST(
     const members = membersRaw.filter(m => m.name?.trim());
 
     // 현재 업무량: 진행 중 + 배분승인대기 상태의 업무 수 (FR-05-016 "현재 업무량")
+    // projectId로 좁힌다 — 안 그러면 다른 프로젝트의 업무량까지 섞여서 "이 프로젝트 기준 여유도"가 아니게 된다
     const activeCounts = await prisma.task.groupBy({
       by: ["assigneeId"],
       _count: { assigneeId: true },
-      where: { assigneeId: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
+      where: { projectId: task.projectId, assigneeId: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
     });
     const workloadMap: Record<string, number> = {};
     activeCounts.forEach(c => { if (c.assigneeId) workloadMap[c.assigneeId] = c._count.assigneeId; });

@@ -15,7 +15,7 @@ export async function POST(
   try {
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const { docId } = await params;
+    const { id: projectId, docId } = await params;
 
     const doc = await prisma.projectDocument.findUnique({ where: { id: docId }, select: { proposalContent: true } });
 
@@ -38,10 +38,12 @@ export async function POST(
     const members = membersRaw.filter(m => m.name?.trim());
     // 현재 업무량: 진행 중 + 배분승인대기 상태의 업무 수를 담당자별로 집계해서
     // AI 프롬프트의 "업무 여유도" 판단 근거(currentActiveTasks)로 넘긴다.
+    // projectId로 반드시 좁혀야 한다 — 안 그러면 다른 프로젝트의 업무량까지 섞여서
+    // "이 프로젝트에서 여유 있는 사람"이 아니라 "전체적으로 바쁜 사람"을 기준으로 배정하게 된다.
     const activeCounts = await prisma.task.groupBy({
       by: ["assigneeId"],
       _count: { assigneeId: true },
-      where: { assigneeId: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
+      where: { projectId, assigneeId: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
     });
     const workloadMap: Record<string, number> = {};
     activeCounts.forEach(c => { if (c.assigneeId) workloadMap[c.assigneeId] = c._count.assigneeId; });
@@ -132,11 +134,13 @@ export async function POST(
     }
 
     // 이 배치만 보고 오늘부터 다시 쌓으면, 이미 확정된 다른 업무와 일정이 겹칠 수 있다 —
-    // 담당자별로 이미 배정된(진행중/배분승인대기) 업무의 가장 늦은 종료일 다음부터 이어서 쌓는다
+    // 담당자별로 이미 배정된(진행중/배분승인대기) 업무의 가장 늦은 종료일 다음부터 이어서 쌓는다.
+    // 이것도 projectId로 좁혀야 한다 — 안 그러면 다른 프로젝트의 일정 때문에 이 프로젝트의
+    // WBS 시작일이 엉뚱하게 밀린다(사람은 같아도 프로젝트별로 일정을 따로 잡는 게 맞다).
     const existingSchedule = await prisma.task.groupBy({
       by: ["assigneeId"],
       _max: { wbsEnd: true },
-      where: { assigneeId: { not: null }, wbsEnd: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
+      where: { projectId, assigneeId: { not: null }, wbsEnd: { not: null }, status: { in: ["IN_PROGRESS", "PENDING_APPROVAL"] } },
     });
     const cursorByAssignee: Record<string, Date> = {};
     existingSchedule.forEach(s => {

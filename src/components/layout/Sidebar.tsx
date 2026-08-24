@@ -14,7 +14,9 @@ import { useSidebar } from "@/components/layout/SidebarContext";
 import { useAuth } from "@/lib/auth";
 import { DevRoleToggle } from "@/components/layout/DevRoleToggle";
 
-const NAV_ITEMS = [
+// MobileNav의 "메뉴" 드로어도 이 목록을 그대로 재사용한다 — 두 군데서 따로 관리하면
+// 메뉴 항목이 하나 추가될 때 모바일에서만 빠지는 사고가 나기 쉽다.
+export const NAV_ITEMS = [
   { href: "/", label: "대시보드", icon: LayoutDashboard },
   { href: "/documents", label: "문서생성", icon: FileText },
   { href: "/tasks", label: "업무관리", icon: Briefcase },
