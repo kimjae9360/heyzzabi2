@@ -215,18 +215,19 @@ export function TaskAssignmentPanel({
                         className="flex items-start gap-1 font-semibold hover:text-primary transition-colors text-left disabled:cursor-default disabled:hover:text-foreground"
                       >
                         {d.techFit && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== d.taskId && "-rotate-90")} />}
-                        <span>
-                          <span className="inline-flex items-center gap-1.5">
-                            {d.title}
-                            {/* 난이도/시간은 요구사항정의서에서 업무를 추출할 때 AI가 함께 산정한 값 — 근거는 hover로 확인 */}
+                        <span className="min-w-0">
+                          {/* 제목이 길면 배지까지 같이 줄바꿈되며 밀려서 보기 나빴다 — 제목은 한 줄로 자르고,
+                              난이도/시간 배지(요구사항정의서에서 업무를 추출할 때 AI가 함께 산정한 값)는 아래로 뺀다 */}
+                          <span className="block truncate">{d.title}</span>
+                          <span className="flex items-center gap-1.5 mt-0.5">
                             <span
                               title={d.difficultyReason ? `AI 산정 근거: ${d.difficultyReason}` : "산정 근거가 없습니다."}
                               className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
                             >
                               {d.difficulty} · {d.estimatedHours ?? "-"}h
                             </span>
+                            {d.techFit && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{d.techFit}</span>}
                           </span>
-                          {d.techFit && <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{d.techFit}</span>}
                         </span>
                       </button>
                     </td>
@@ -367,21 +368,23 @@ function AssignedList({
                         disabled={!reason}
                       >
                         {reason && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== t.id && "-rotate-90")} />}
-                        <span>
-                          <span className="inline-flex items-center gap-1.5">
-                            {t.title}
+                        <span className="min-w-0">
+                          {/* 제목은 한 줄로 자르고, 난이도/시간 배지는 아래 줄로 — 안 그러면 제목이 길 때
+                              배지까지 같이 줄바꿈되며 아래로 밀려 보였다 */}
+                          <span className="block truncate">{t.title}</span>
+                          <span className="flex items-center gap-1.5 mt-0.5">
                             <span
                               title={t.difficultyReason ? `AI 산정 근거: ${t.difficultyReason}` : "산정 근거가 없습니다."}
                               className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
                             >
                               {t.difficulty} · {t.estimatedHours ?? "-"}h
                             </span>
+                            {reason?.techFit ? (
+                              <span className="text-xs font-normal text-muted-foreground line-clamp-1">{reason.techFit}</span>
+                            ) : (
+                              <span className="text-xs font-normal text-muted-foreground/60">배정 근거 없음(수동 변경됨)</span>
+                            )}
                           </span>
-                          {reason?.techFit ? (
-                            <span className="block text-xs font-normal text-muted-foreground mt-0.5 line-clamp-1">{reason.techFit}</span>
-                          ) : (
-                            <span className="block text-xs font-normal text-muted-foreground/60 mt-0.5">배정 근거 없음(수동 변경됨)</span>
-                          )}
                         </span>
                       </button>
                     </td>
