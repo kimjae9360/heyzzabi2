@@ -33,6 +33,7 @@ type ProjectDocument = {
   proposalRejectReason: string | null;
   reqSpecStatus: string;
   reqSpecRejectReason: string | null;
+  meetingDate: string | null;
   updatedAt: string;
 };
 
@@ -518,6 +519,11 @@ export default function DocumentsPage() {
                       <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", meta.className)}>
                         <Icon className="w-3 h-3" /> {meta.label}
                       </span>
+                      {/* 제목이 겹치는 문서가 많아 구분하기 어려우니 날짜를 함께 보여준다 — 회의 날짜가
+                          있으면 그걸(문서 내용과 의미가 맞음), 없으면(과거/시드 데이터) 최근 수정일로 대체 */}
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        {new Date(doc.meetingDate ?? doc.updatedAt).toLocaleDateString("ko-KR")}
+                      </p>
                     </button>
                     <button
                       onClick={() => isDocDeletable(doc) && setDeleteTarget({ id: doc.id, title: doc.title })}
