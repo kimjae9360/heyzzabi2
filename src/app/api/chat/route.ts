@@ -2,10 +2,6 @@
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
 export async function GET() {
   try {
     const messages = await prisma.chatMessage.findMany({
@@ -19,6 +15,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
     const body = await req.json();
     const userMessageContent = body.message;
 

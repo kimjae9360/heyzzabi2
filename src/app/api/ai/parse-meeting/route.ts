@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-// Optional: you might want to handle cases where OPENAI_API_KEY is not set yet.
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy", // Fallback to avoid crash on boot if not set
-});
-
 export async function POST(request: Request) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "dummy" });
     const { notes } = await request.json();
 
     if (!notes) {

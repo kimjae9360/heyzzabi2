@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const toList = (s: string | null) => (s ? s.split(",").map(v => v.trim()).filter(Boolean) : []);
 
 // FR-05-016 / FR-05-017: 기술스택 · 현재 업무량 · 유사 업무 경험 · 난이도를 근거로 담당자를 추천하고,
@@ -13,6 +11,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { id } = await params;
 
     const task = await prisma.task.findUnique({ where: { id } });

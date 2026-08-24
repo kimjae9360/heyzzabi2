@@ -4,12 +4,10 @@ import OpenAI from 'openai';
 // API 라우트 캐싱 방지 (항상 최신 결과 반환)
 export const dynamic = 'force-dynamic';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(req: Request) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { contextText } = await req.json();
 
     if (!contextText) {

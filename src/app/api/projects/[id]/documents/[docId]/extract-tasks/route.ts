@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 // FR-05-014/015: 승인된 요구사항정의서를 기반으로 3~7개의 업무를 자동 생성한다.
 // 각 업무는 업무명/설명/예상 소요시간/난이도/난이도 판단 근거를 갖는다.
 export async function POST(
@@ -11,6 +9,8 @@ export async function POST(
   props: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const params = await props.params;
 
     const doc = await prisma.projectDocument.findUnique({ where: { id: params.docId } });

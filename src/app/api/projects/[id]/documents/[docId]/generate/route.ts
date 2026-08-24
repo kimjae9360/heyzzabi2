@@ -3,10 +3,6 @@ import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 import type { ProposalDoc, ReqSpecDoc } from "@/lib/documentTemplates";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 const NO_HALLUCINATION_RULE =
   "[절대 규칙] 원본에 명시되지 않은 사실, 기능, 수치, 일정은 절대 추가하거나 지어내지 마라(No hallucination). " +
   "원본에서 확인할 수 없는 항목은 비워두거나 생략하라. 근거 없는 추측으로 채우지 마라.";
@@ -16,6 +12,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    // 빌드 시점(Next.js의 페이지 데이터 수집 단계)에 이 모듈이 평가되는데, 그때는
+    // 환경변수가 없을 수 있어 모듈 스코프에서 생성하면 배포 빌드 자체가 깨진다 — 요청 안에서 생성한다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { docId } = await params;
     const body = await request.json();
     const { type } = body; // 'proposal' | 'reqSpec'

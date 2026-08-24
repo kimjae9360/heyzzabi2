@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const toList = (s: string | null) => (s ? s.split(",").map(v => v.trim()).filter(Boolean) : []);
 
 // 업무 하나씩이 아니라 이 문서에서 나온 업무 전체를 한 번에 보고 배정을 추천한다 —
@@ -15,6 +13,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { docId } = await params;
 
     const tasks = await prisma.task.findMany({
