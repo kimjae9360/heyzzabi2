@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  password             String
+  name                 String
+  role                 String    @default("EMPLOYEE") // 시스템 권한: PM | EMPLOYEE
+  mustChangePassword   Boolean   @default(true)
+  employeeNo           String?   @unique
+  department           String?
+  position             String?   // 직급
+  jobTitle             String?   // 직무
+  status               String    @default("ACTIVE") // ACTIVE | LEAVE | RESIGNED | LOCKED
+  hireDate             DateTime?
+  slackEmail           String?
+  githubEmail          String?
+  techStack            String?
+  certifications       String?
+  pastProjects         String?
+  phone                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  assignedTasks        Task[]    @relation("TaskAssignee")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  slackWebhookUrl String?
+  githubOwner     String?
+  githubRepo      String?
+  githubToken     String?
+  tasks       Task[]
+  documents   ProjectDocument[]
+  researchReports ResearchReport[]
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  status      String    @default("BACKLOG")
+  difficulty  String    @default("MEDIUM")
+  difficultyReason String? // FR-05-015: 난이도 판단 근거
+  estimatedHours   Float?  // FR-05-015: 예상 소요시간
+  assignmentReason String? // 업무분배 탭: AI가 이 담당자를 추천한 근거 JSON({fitScore, techFit, workloadFit, experienceFit})
+  gitStatus   String    @default("NONE") // FR-07-003: NONE | PENDING | IN_REVIEW | MERGED (수동 표시 — 실제 Git 연동은 FR-08에서 예정)
+  progress    Int       @default(0)
+  wbsStart    DateTime?
+  wbsEnd      DateTime?
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceDocumentId String? // 이 업무를 생성한 요구사항정의서(ProjectDocument) — 히스토리 추적용
+  assigneeId   String?
+  assignee     User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  completedAt  DateTime?
+  rejectReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model MeetingNote {
+  id          String    @id @default(uuid())
+  title       String
+  content     String
+  summary     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ProjectDocument {
+  id              String   @id @default(uuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  title           String
+  meetingDate     DateTime?
+  attendees       String?
+
+  rawContent      String?
+
+  // proposalContent / reqSpecContent are JSON strings matching a fixed template shape
+  // (see src/lib/documentTemplates.ts) so they can be rendered and exported consistently.
+  proposalContent      String? // ProposalDoc JSON
+  proposalDraftOptions String? // ProposalDraftOption[] JSON — candidate 안 1/2/3 awaiting selection
+  reqSpecContent       String? // ReqSpecDoc JSON (table rows)
+
+  // Independent review gates: DRAFT -> PENDING_REVIEW -> APPROVED | REJECTED
+  proposalStatus       String  @default("DRAFT")
+  proposalRejectReason String?
+  reqSpecStatus        String  @default("DRAFT")
+  reqSpecRejectReason  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+model ChatMessage {
+  id        String   @id @default(uuid())
+  role      String   // 'user' | 'ai' | 'system'
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model AIAgent {
+  id           String   @id @default(uuid())
+  name         String
+  role         String
+  systemPrompt String
+  model        String   @default("gpt-4o")
+  projectId    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+
+model ResearchReport {
+  id           String   @id @default(uuid())
+  question     String
+  content      String
+  sourcesJson  String
+  degraded     Boolean  @default(false)
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

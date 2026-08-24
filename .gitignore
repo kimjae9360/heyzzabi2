@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# local sqlite db — contains real user data (plaintext passwords, see PROJECT_STATUS.md)
+*.db
+*.db-journal
+
+# vendored skill docs (regeneratable, duplicated across .claude/.agents/.windsurf)
+/.agents/
+/.windsurf/
+/.claude/skills/
+
+# one-off dev/debug scripts, not part of the app
+/members_page_dump.txt

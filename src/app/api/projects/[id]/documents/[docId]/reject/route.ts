@@ -1,0 +1,31 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+const FIELD = { proposal: "proposalStatus", reqSpec: "reqSpecStatus" } as const;
+const REASON_FIELD = { proposal: "proposalRejectReason", reqSpec: "reqSpecRejectReason" } as const;
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; docId: string }> }
+) {
+  try {
+    const { docId } = await params;
+    const { type, reason } = await request.json();
+
+    if (type !== "proposal" && type !== "reqSpec") {
+      return NextResponse.json({ error: "type은 proposal 또는 reqSpec이어야 합니다." }, { status: 400 });
+    }
+    if (!reason || !reason.trim()) {
+      return NextResponse.json({ error: "반려 사유는 필수입니다." }, { status: 400 });
+    }
+
+    const updated = await prisma.projectDocument.update({
+      where: { id: docId },
+      data: { [FIELD[type]]: "REJECTED", [REASON_FIELD[type]]: reason },
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: "반려 처리 실패" }, { status: 500 });
+  }
+}

@@ -1,0 +1,29 @@
+﻿import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // 배분 승인: PM이 이 담당자에게 업무를 배정하는 것을 승인 — 작업이 이제 시작됨(FR-05-018)
+    const task = await prisma.task.update({
+      where: { id },
+      data: {
+        status: "IN_PROGRESS",
+        rejectReason: null,
+      },
+      include: {
+        assignee: { select: { name: true, email: true } },
+        project: { select: { name: true } },
+      }
+    });
+
+    return NextResponse.json({ success: true, data: task });
+  } catch (error: any) {
+    console.error("Approve Task Error:", error);
+    return NextResponse.json({ success: false, error: "승인 처리에 실패했습니다." }, { status: 500 });
+  }
+}
