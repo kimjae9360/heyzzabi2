@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
-import { FolderKanban, ListTodo, Search, LayoutGrid, CalendarIcon, UserIcon, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge } from "lucide-react";
+import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { KanbanBoard } from "@/components/layout/KanbanBoard";
 
 type Task = {
   id: string;
@@ -18,8 +19,13 @@ type Task = {
   wbsEnd: string | null;
   progress: number;
   project: { id: string; name: string };
+  assigneeId: string | null;
   assignee: { id: string; name: string } | null;
+  rejectReason?: string | null;
+  assignmentReason?: string | null;
 };
+
+type Member = { id: string; name: string; email: string; role: string };
 
 const STATUSES = [
   { id: "BACKLOG", label: "대기", color: "text-muted-foreground", bg: "bg-muted" },
@@ -49,11 +55,24 @@ export default function TasksPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
-  const [collapsedCols, setCollapsedCols] = useState<Record<string, boolean>>({});
-  const toggleColumn = (id: string) => setCollapsedCols(prev => ({ ...prev, [id]: !prev[id] }));
+
+  // 칸반 뷰(KanbanBoard 컴포넌트)는 담당자 배정에 프로젝트 멤버 목록이 필요하고,
+  // 신규 업무 생성에는 프로젝트 id가 필요하다 — 이 앱은 단일 프로젝트 전제이므로
+  // 다른 화면들과 같은 방식으로 가장 최근(첫 번째) 프로젝트를 기본값으로 쓴다.
+  const [members, setMembers] = useState<Member[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTasks();
+    Promise.all([
+      fetch("/api/projects").then(r => r.json()),
+      fetch("/api/users").then(r => r.json()),
+    ]).then(([projectsRes, usersRes]) => {
+      const projects = Array.isArray(projectsRes) ? projectsRes : projectsRes.data || [];
+      setCurrentProjectId(projects[0]?.id ?? null);
+      // PM은 배정 대상이 아니고, 온보딩 전이라 이름이 비어있는 계정은 제외한다 (projects/[id] 페이지와 동일한 기준).
+      if (usersRes.success) setMembers(usersRes.data.filter((u: Member) => u.role !== "PM" && u.name?.trim()));
+    }).catch(error => console.error(error));
   }, []);
 
   // 로그인 정보가 로드된 뒤 역할에 맞는 기본 필터로 맞춘다 (PM은 전체 업무를 기본으로 봄)
@@ -214,109 +233,17 @@ export default function TasksPage() {
       ) : (
         <>
           {viewMode === "KANBAN" ? (
-            <div className="flex gap-4 overflow-x-auto pb-6 snap-x pt-2 px-1">
-              {STATUSES.map(status => {
-                const columnTasks = filteredTasks.filter(t => t.status === status.id);
-                const isCollapsed = collapsedCols[status.id];
-                
-                return (
-                  <div 
-                    key={status.id} 
-                    className={cn(
-                      "flex flex-col max-h-[75vh] snap-start transition-all duration-300 ease-in-out border rounded-2xl shadow-sm relative",
-                      isCollapsed 
-                        ? "w-14 min-w-[56px] shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 items-center py-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800" 
-                        : "min-w-[280px] w-[280px] shrink-0 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 p-4 shadow-lg"
-                    )}
-                    onClick={() => isCollapsed && toggleColumn(status.id)}
-                  >
-                    {isCollapsed ? (
-                      <div className="flex flex-col items-center h-full gap-4">
-                        <span className={cn("w-3 h-3 rounded-full", status.bg.replace('/10', ''))} title={status.label} />
-                        <span className="bg-black/10 dark:bg-white/10 text-[10px] px-2 py-0.5 rounded-full text-muted-foreground font-bold">{columnTasks.length}</span>
-                        <div className="writing-vertical-lr text-sm font-bold text-muted-foreground tracking-widest mt-4" style={{ writingMode: 'vertical-rl' }}>
-                          {status.label}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between mb-4 px-1">
-                          <h3 className="font-extrabold flex items-center gap-2 text-sm tracking-tight">
-                            <span className={cn("w-2.5 h-2.5 rounded-full shadow-sm", status.bg.replace('/10', ''))} />
-                            {status.label}
-                            <span className="bg-white dark:bg-white/10 text-xs px-2 py-0.5 rounded-full text-muted-foreground font-semibold shadow-sm">{columnTasks.length}</span>
-                          </h3>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); toggleColumn(status.id); }}
-                            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition-colors"
-                          >
-                            <ChevronLeft className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin">
-                          {columnTasks.map(task => (
-                            <div key={task.id} className="bg-white dark:bg-black/40 p-4 rounded-xl border border-black/5 dark:border-white/10 hover:border-primary/40 hover:shadow-lg transition-all shadow-md relative group">
-                              {processingId === task.id && (
-                                <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] flex items-center justify-center z-10 rounded-xl">
-                                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                                </div>
-                              )}
-                              <div className="flex items-start justify-between gap-2 mb-2.5">
-                                <h4 className="font-bold text-sm leading-snug">{task.title}</h4>
-                                {task.status === "PENDING_APPROVAL" ? (
-                                  <span className="text-[10px] font-semibold px-1.5 py-1 rounded bg-orange-500/10 text-orange-500 whitespace-nowrap">
-                                    PM 승인 대기
-                                  </span>
-                                ) : (
-                                  <select
-                                    value={task.status}
-                                    onChange={e => handleStatusChange(task.id, e.target.value)}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 dark:bg-white/5 text-[10px] font-semibold px-1.5 py-1 rounded border border-transparent hover:border-black/10 dark:hover:border-white/10 focus:outline-none focus:opacity-100 cursor-pointer"
-                                  >
-                                    {STATUSES.filter(s => s.id !== "PENDING_APPROVAL").map(s => <option key={s.id} value={s.id} className="text-foreground">{s.label}</option>)}
-                                  </select>
-                                )}
-                              </div>
-                              {task.description && <p className="text-[13px] text-muted-foreground line-clamp-2 mb-4 leading-relaxed">{task.description}</p>}
-                              
-                              <div className="flex items-center justify-between mt-auto pt-3 border-t border-black/5 dark:border-white/5">
-                                <div className="flex items-center gap-2">
-                                  {task.assignee ? (
-                                    <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-1 rounded-full">
-                                      <div className="w-4 h-4 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[9px] font-bold">
-                                        {task.assignee.name.charAt(0)}
-                                      </div>
-                                      <span className="text-[10px] font-semibold">{task.assignee.name}</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 px-2 py-1 rounded-full text-muted-foreground">
-                                      <UserIcon className="w-3 h-3" />
-                                      <span className="text-[10px] font-semibold">미배정</span>
-                                    </div>
-                                  )}
-                                </div>
-                                {task.wbsEnd && (
-                                  <div className="text-[10px] font-semibold flex items-center gap-1 text-muted-foreground">
-                                    <CalendarIcon className="w-3 h-3 opacity-70" />
-                                    {new Date(task.wbsEnd).toLocaleDateString()}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {columnTasks.length === 0 && (
-                            <div className="h-28 flex flex-col items-center justify-center border-2 border-dashed border-black/10 dark:border-white/10 rounded-xl bg-transparent">
-                              <FolderKanban className="w-5 h-5 text-muted-foreground/50 mb-2" />
-                              <p className="text-xs font-semibold text-muted-foreground">태스크 없음</p>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            currentProjectId ? (
+              // FR-05: 업무분배 승인/반려는 KanbanBoard 컴포넌트로 통일한다 — 이전에는 이 화면이
+              // 자체 칸반 마크업을 따로 갖고 있어서 PENDING_APPROVAL 카드에 승인/반려 버튼이 없었고,
+              // 팀원이 매일 쓰는 이 화면에서는 승인함(/approvals)이나 프로젝트 상세 페이지로 가야만 승인할 수 있었다.
+              <KanbanBoard projectId={currentProjectId} initialTasks={filteredTasks} members={members} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-64 text-center gap-3">
+                <FolderKanban className="w-10 h-10 text-muted-foreground/30" />
+                <p className="text-muted-foreground text-sm">아직 프로젝트가 없습니다.</p>
+              </div>
+            )
           ) : viewMode === "LIST" ? (
             <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
               <table className="w-full text-sm text-left">
