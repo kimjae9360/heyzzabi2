@@ -52,7 +52,8 @@ Figma가 막힌 이후 "벤치마킹을 직접 코드로 구현" 하는 방향�
 - [x] 문서 PDF 출력(브라우저 print), 기획서 PPTX 출력(`pptxgenjs`)
 - [x] 문서 **삭제**(확인 모달 포함) / 원본 회의록·메모 **직접 수정**(dirty-state 저장 버튼) — 2026-08-24 추가
 - [x] AI 담당자 추천 (`recommend-assignees`) — 기술적합도/업무여유도/유사경험 근거 포함, 후보 0명이 아니면 최소 1명은 반드시 추천하도록 프롬프트 처리
-- [x] 칸반 보드 통합 — 예전에 3개의 중복 칸반 구현이 있었으나 `KanbanBoard.tsx` 하나로 통합, 배분승인 게이트/반려사유 모두 반영
+- [x] 칸반 보드 통합 — 예전에 3개의 중복 칸반 구현이 있었으나 `KanbanBoard.tsx` 하나로 통합, 배분승인 게이트/반려사유 모두 반영. **2026-08-24 재확인**: 위 기록과 달리 실제로는 `/tasks` 페이지(`tasks/page.tsx`)가 자체 칸반 마크업을 따로 갖고 있어서 `PENDING_APPROVAL` 카드에 승인/반려 버튼이 없었음(배지만 뜸) — `/tasks`의 칸반 뷰를 `KanbanBoard.tsx`로 교체해서 이제 진짜로 하나로 통합됨. `KanbanBoard`는 단일 프로젝트를 전제하므로(`projectId`/`members` prop 필요), `/tasks`도 다른 화면처럼 `projects[0]`을 기본 프로젝트로 사용.
+- [x] 요구사항정의서 재추출 시 업무 중복 생성 방지 (2026-08-24) — `extract-tasks` 라우트가 같은 `sourceDocumentId`에서 이미 뽑은 업무가 있는지 체크하지 않아, 반려→직접수정→재승인 흐름 후 "업무분배 실행"을 다시 누르면 이전 업무 세트 위에 새 세트가 그대로 추가됐음. 정책: 아직 아무도 손대지 않은(`BACKLOG`) 업무는 새 세트로 교체, 이미 배정·진행 중이거나 완료된 업무는 진행 상황을 잃지 않도록 그대로 둠(응답에 `replacedCount`/`staleTasks`로 알려줌). `documents/page.tsx`는 재추출 전 확인 다이얼로그를, 재추출 후에는 보존된 업무가 있으면 경고를 보여줌.
 - [x] 업무 리스트(`/tasks`): 칸반/리스트/**WBS**(진행률 요약 + Git 상태 컬럼) 3가지 뷰
 - [x] 역할별 화면 분기: 대시보드(PM=팀 전체 KPI·워크로드 / MEMBER=개인 요약), 문서생성, 업무관리, 결재함(승인함), 직원관리 — 전부 검증됨
 - [x] 직원관리(FR-02-003 필드 100% 반영): employeeNo/position/jobTitle/status/hireDate/skills/certs/pastProjects, 상태탭, PM만 CRUD 가능. **PM 정보수정 모달 2단 컬럼 레이아웃**(2026-08-24, 세로로 너무 길다는 피드백 반영)
@@ -126,4 +127,4 @@ model AssigneeRecommendation {
 
 - 로컬 실행: `npm run dev --prefix heyzzabi2` (포트 3000), `.claude/launch.json`에 `"heyzzabi2"` 설정으로 등록되어 있음
 - Prisma 스키마 변경 시: 반드시 dev 서버를 먼저 내린 뒤(`prisma generate`가 Windows에서 DLL 파일 잠금으로 EPERM 나기 때문) `npx prisma db push --accept-data-loss` → `npx prisma generate` → 서버 재기동 순서로 진행
-- git 저장소 아님 — 버전 관리가 안 되어 있으므로, 이 문서와 코드 변경사항이 유일한 기록임. **git init을 고려해볼 것.**
+- git 저장소로 전환됨(`origin`: `github.com/kimjae9360/heyzzabi2`, 기본 브랜치 `main`) — 커밋 로그도 이제 기록의 일부이니 `git log`도 함께 참고할 것.
