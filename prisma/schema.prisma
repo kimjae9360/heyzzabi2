@@ -44,6 +44,10 @@ model Project {
   githubOwner     String?
   githubRepo      String?
   githubToken     String?
+  // 에이전트 3종(기획서/요구사항정의서/업무배분)의 세부 설정 — JSON string.
+  // 값이 없으면 각 라우트가 기존 하드코딩 기본값을 그대로 쓴다(설정 페이지 방문 전에도 안전).
+  // 모양: { proposal: {temperature}, reqSpec: {temperature}, taskAssign: {temperature, minTasks, maxTasks} }
+  agentConfig String?
   tasks       Task[]
   documents   ProjectDocument[]
   researchReports ResearchReport[]

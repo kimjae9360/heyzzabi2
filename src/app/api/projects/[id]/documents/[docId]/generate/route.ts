@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 import type { ProposalDoc, ReqSpecDoc } from "@/lib/documentTemplates";
+import { parseAgentConfig } from "@/lib/agentConfig";
 
 const NO_HALLUCINATION_RULE =
   "[절대 규칙] 원본에 명시되지 않은 사실, 기능, 수치, 일정은 절대 추가하거나 지어내지 마라(No hallucination). " +
@@ -18,7 +19,7 @@ export async function POST(
     // 빌드 시점(Next.js의 페이지 데이터 수집 단계)에 이 모듈이 평가되는데, 그때는
     // 환경변수가 없을 수 있어 모듈 스코프에서 생성하면 배포 빌드 자체가 깨진다 — 요청 안에서 생성한다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const { docId } = await params;
+    const { id: projectId, docId } = await params;
     const body = await request.json();
     // type: 어떤 문서를 생성할지 지정 — 'proposal'(기획서) 또는 'reqSpec'(요구사항정의서).
     // 이 둘은 파이프라인 순서가 고정되어 있어(회의록→기획서→요구사항정의서) 아래 if/else if로 분기한다.
@@ -36,16 +37,19 @@ export async function POST(
       return NextResponse.json({ error: "문서를 찾을 수 없습니다." }, { status: 404 });
     }
 
+    const project = await prisma.project.findUnique({ where: { id: projectId }, select: { agentConfig: true } });
+    const agentConfig = parseAgentConfig(project?.agentConfig);
+
     if (type === "proposal") {
       // 기획서는 반드시 회의록 원본(rawContent)이 있어야 생성 가능 — 파이프라인의 첫 단계
       if (!doc.rawContent) return NextResponse.json({ error: "원본 회의록이 없습니다." }, { status: 400 });
 
-      // response_format: json_object로 모델이 순수 JSON만 반환하도록 강제하고,
-      // temperature: 0.0으로 출력을 최대한 결정적으로 만들어 매번 결과가 크게 달라지지 않게 한다
+      // response_format: json_object로 모델이 순수 JSON만 반환하도록 강제하고, temperature는
+      // 기본 0.0(결정적)이되 /settings의 "기획서 생성 에이전트" 설정값을 따른다(환각 방지를 위해 0~0.3으로 clamp됨)
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
-        temperature: 0.0,
+        temperature: agentConfig.proposal.temperature,
         messages: [
           {
             role: "system",
@@ -86,7 +90,7 @@ export async function POST(
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
-        temperature: 0.0,
+        temperature: agentConfig.reqSpec.temperature,
         messages: [
           {
             role: "system",

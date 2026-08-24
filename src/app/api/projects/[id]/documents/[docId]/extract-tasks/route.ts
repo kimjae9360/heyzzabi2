@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
+import { parseAgentConfig } from "@/lib/agentConfig";
 
 // FR-05-014/015: 승인된 요구사항정의서를 기반으로 3~7개의 업무를 자동 생성한다.
 // 각 업무는 업무명/설명/예상 소요시간/난이도/난이도 판단 근거를 갖는다.
@@ -21,18 +22,22 @@ export async function POST(
       return NextResponse.json({ error: "요구사항정의서가 승인된 이후에 업무를 생성할 수 있습니다." }, { status: 400 });
     }
 
+    const project = await prisma.project.findUnique({ where: { id: params.id }, select: { agentConfig: true } });
+    const { taskAssign } = parseAgentConfig(project?.agentConfig);
+
     // 승인 전 초안 상태의 요구사항으로 업무를 만들면 이후 요구사항이 바뀔 때마다
     // 이미 만든 업무들이 전부 어긋나므로, 승인된 확정 문서에서만 업무를 생성하도록 막는다.
+    // temperature/업무 개수 범위는 /settings의 "업무 배분 에이전트" 설정을 따른다(기본값은 기존과 동일).
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
-      temperature: 0.1, // 낮은 temperature: 같은 요구사항서로 재생성해도 결과가 크게 흔들리지 않게
+      temperature: taskAssign.temperature,
       messages: [
         {
           role: "system",
           content:
             "당신은 요구사항정의서를 실행 가능한 업무(Task) 단위로 분해하는 어시스턴트입니다.\n\n" +
-            "[절대 규칙] 요구사항정의서에 없는 기능을 지어내지 마라. 3개 이상 7개 이하의 업무로 나눈다.\n\n" +
+            `[절대 규칙] 요구사항정의서에 없는 기능을 지어내지 마라. ${taskAssign.minTasks}개 이상 ${taskAssign.maxTasks}개 이하의 업무로 나눈다.\n\n` +
             "다음 JSON 스키마로만 응답하라 (다른 텍스트 금지):\n" +
             `{"tasks": [{"title": "업무명", "description": "상세 설명", "difficulty": "낮음|보통|높음", "difficultyReason": "난이도 판단 근거 한 문장", "estimatedHours": 숫자(시간 단위)}]}`
         },

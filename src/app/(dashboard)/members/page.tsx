@@ -311,7 +311,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                 <th className="px-6 py-4 font-semibold">직원</th>
                 <th className="px-6 py-4 font-semibold">부서 / 직급 / 직무</th>
                 <th className="px-6 py-4 font-semibold">기술 스택</th>
-                <th className="px-6 py-4 font-semibold">입사일 / 퇴사일</th>
+                <th className="px-6 py-4 font-semibold whitespace-nowrap">입사일 /<br />퇴사일</th>
                 <th className="px-6 py-4 font-semibold">역할</th>
                 <th className="px-6 py-4 font-semibold">상태</th>
                 {isPM && <th className="px-6 py-4 font-semibold text-center">설정</th>}
@@ -340,7 +340,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     </td>
 
                     {/* Department / Position / Job Title */}
-                    <td className="px-6 py-4 text-muted-foreground">
+                    <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
                       <p>{member.department || "-"} {member.position ? `· ${member.position}` : ""}</p>
                       <p className="text-xs">{member.jobTitle || "-"}{member.employeeNo ? ` · ${member.employeeNo}` : ""}</p>
                     </td>
