@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { parseProposalDoc, parseReqSpecDoc } from "@/lib/documentTemplates";
 import { ProposalTemplate } from "@/components/documents/ProposalTemplate";
 import { ReqSpecTemplate } from "@/components/documents/ReqSpecTemplate";
-import { AgentBadge } from "@/components/ui/AgentBadge";
+import { AgentBadge, type AgentKind } from "@/components/ui/AgentBadge";
 import { exportProposalPptx } from "@/lib/exportProposalPptx";
 import { exportReqSpecPptx } from "@/lib/exportReqSpecPptx";
 import { exportReqSpecExcel } from "@/lib/exportReqSpecExcel";
@@ -45,6 +45,18 @@ type ActivityItem = {
 };
 
 const AGENT_KINDS: ActivityItem["kind"][] = ["agent-proposal", "agent-reqspec", "agent-task"];
+
+// 리스트에서 로봇 아이콘만 봐서는 3개 에이전트 중 무엇인지 구분이 안 된다는 피드백 —
+// 종류별로 아이콘 색을 다르게 칠하고(빠른 스캔용), 뱃지 텍스트도 함께 보여준다(확정용).
+// AgentBadge.tsx의 색 배정과 반드시 맞춰야 한다.
+const agentOfKind = (kind: ActivityItem["kind"]): AgentKind | null =>
+  kind === "agent-proposal" ? "proposal" : kind === "agent-reqspec" ? "reqSpec" : kind === "agent-task" ? "taskAssign" : null;
+
+const AGENT_ICON_CLASS: Record<AgentKind, string> = {
+  proposal: "bg-blue-500/10 text-blue-500",
+  reqSpec: "bg-violet-500/10 text-violet-500",
+  taskAssign: "bg-teal-500/10 text-teal-500",
+};
 
 export default function HistoryPage() {
   const [project, setProject] = useState<any>(null);
@@ -247,6 +259,7 @@ export default function HistoryPage() {
             const meta = STATUS_META[item.status] ?? STATUS_META.DRAFT;
             const Icon = meta.icon;
             const isAgent = AGENT_KINDS.includes(item.kind);
+            const agentKind = agentOfKind(item.kind);
             const KindIcon = isAgent ? Bot : item.kind === "task" ? ListTodo : FileText;
             return (
               <button
@@ -256,14 +269,15 @@ export default function HistoryPage() {
               >
                 <div className={cn(
                   "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
-                  isAgent ? "bg-primary/10" : "bg-black/5 dark:bg-white/5"
+                  agentKind ? AGENT_ICON_CLASS[agentKind] : "bg-black/5 dark:bg-white/5 text-muted-foreground"
                 )}>
-                  <KindIcon className={cn("w-4 h-4", isAgent ? "text-primary" : "text-muted-foreground")} />
+                  <KindIcon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm truncate">{item.title}</span>
                     <span className="text-[11px] text-muted-foreground shrink-0">· {item.subtitle}</span>
+                    {agentKind && <AgentBadge agent={agentKind} />}
                   </div>
                   {item.rejectReason && item.status === "REJECTED" && (
                     <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1">

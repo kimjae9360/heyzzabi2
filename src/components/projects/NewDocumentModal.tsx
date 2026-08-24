@@ -63,7 +63,7 @@ export function NewDocumentModal({
 }: {
   // 문서생성 페이지가 현재 보고 있는 프로젝트가 있으면 기본 선택값으로 넘겨준다 — 없어도(첫 사용) 동작함
   defaultProjectId?: string;
-  onClose: (projectId?: string) => void;
+  onClose: (projectId?: string, createdDocId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
@@ -199,9 +199,10 @@ export function NewDocumentModal({
       if (!res.ok) {
         throw new Error("생성 실패");
       }
+      const createdDoc = await res.json();
 
       router.refresh();
-      onClose(targetProjectId);
+      onClose(targetProjectId, createdDoc?.id);
     } catch (error) {
       console.error(error);
       alert("문서 생성 중 오류가 발생했습니다.");

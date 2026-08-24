@@ -19,6 +19,7 @@ export async function GET() {
         jobTitle: true,
         status: true,
         hireDate: true,
+        resignDate: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },

@@ -19,8 +19,17 @@ const COLUMNS = [
   { id: "DONE", title: "완료", color: "bg-emerald-500/20" },
 ];
 
-function AssigneeDropdown({ task, members, onAssign }: { task: any, members: any[], onAssign: (taskId: string, userId: string) => void }) {
+function AssigneeDropdown({ task, members, onAssign, readOnly }: { task: any, members: any[], onAssign: (taskId: string, userId: string) => void, readOnly?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  // 담당자 재배정은 PM의 권한 — 일반 유저에게는 클릭해도 아무 일도 안 일어나는 뱃지로만 보여준다
+  if (readOnly) {
+    return (
+      <span className="bg-black/5 dark:bg-white/5 text-muted-foreground px-2 py-1 rounded-md font-medium truncate max-w-[120px] inline-block">
+        {task.assignee ? task.assignee.name : "미배정"}
+      </span>
+    );
+  }
 
   return (
     <div className="relative">
@@ -58,7 +67,9 @@ function AssigneeDropdown({ task, members, onAssign }: { task: any, members: any
   );
 }
 
-function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, isPM, onApprove, onReject, onRequestAssignment, processing }: any) {
+function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
+  // 칸반 카드를 드래그해 상태를 바꾸는 것도 "내 업무" 아니면 PM만 — 예전엔 아무 카드나 아무나 옮길 수 있었다.
+  const canManage = isPM || task.assigneeId === currentUserId;
   const {
     attributes,
     listeners,
@@ -66,7 +77,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, data: { type: "Task", task } });
+  } = useSortable({ id: task.id, data: { type: "Task", task }, disabled: !canManage });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -79,11 +90,12 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(canManage ? attributes : {})}
+      {...(canManage ? listeners : {})}
       onClick={() => onClick(task)}
       className={cn(
-        "bg-black/20 dark:bg-white/5 hover:bg-black/40 dark:hover:bg-white/10 border border-white/10 rounded-lg p-4 cursor-grab active:cursor-grabbing transition-colors group relative",
+        "bg-white dark:bg-white/5 hover:bg-zinc-50 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/10 shadow-sm hover:shadow-md rounded-lg p-4 transition-all group relative",
+        canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         isDragging && "opacity-50 border-primary shadow-lg ring-2 ring-primary/20"
       )}
     >
@@ -100,7 +112,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
       )}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-white/5 pt-3 mt-3">
-        <AssigneeDropdown task={task} members={members} onAssign={onAssign} />
+        <AssigneeDropdown task={task} members={members} onAssign={onAssign} readOnly={!isPM} />
         {task.progress > 0 && <span className="font-medium text-primary">{task.progress}%</span>}
       </div>
 
@@ -135,7 +147,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
   );
 }
 
-function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, onCardClick, projectId, isPM, onApprove, onReject, onRequestAssignment, processing }: any) {
+function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, onCardClick, projectId, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
   const { setNodeRef } = useSortable({
     id: column.id,
     data: { type: "Column", column },
@@ -176,7 +188,7 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
   };
 
   return (
-    <div className="w-full min-w-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-xl flex flex-col max-h-full overflow-hidden">
+    <div className="w-full min-w-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-xl flex flex-col overflow-hidden">
       <div className="p-3 border-b border-white/5 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-800/50 shrink-0">
         <div className="flex items-center gap-2">
           <div className={cn("w-3 h-3 rounded-full", column.color)} />
@@ -192,7 +204,7 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
         )}
       </div>
 
-      <div ref={setNodeRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
+      <div ref={setNodeRef} className="flex-1 p-3 space-y-3 min-h-[200px]">
         {isCreating && (
           <div className="bg-zinc-50/50 dark:bg-white/5 border border-primary/50 rounded-lg p-3">
             <input
@@ -230,6 +242,7 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
               onReject={onReject}
               onRequestAssignment={onRequestAssignment}
               processing={processing}
+              currentUserId={currentUserId}
             />
           ))}
         </SortableContext>
@@ -316,6 +329,8 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
     const draggedTask = tasks.find(t => t.id === activeId);
     const overColumnId = COLUMNS.find(c => c.id === overId)?.id || tasks.find(t => t.id === overId)?.status;
     if (!draggedTask || !overColumnId || draggedTask.status === overColumnId) return;
+    // useSortable의 disabled로 이미 막지만, 한 번 더 확인 — 남의 업무는 PM이 아니면 옮길 수 없다
+    if (!isPM && draggedTask.assigneeId !== user?.id) return;
 
     if (overColumnId === "PENDING_APPROVAL") {
       // 담당자 확인 없이는 배분승인대기로 보낼 수 없음 — 확인 모달을 띄우고 실제 상태는 아직 바꾸지 않음
@@ -393,9 +408,12 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
   return (
     <>
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        {/* 컬럼 4개가 가로 스크롤 없이 화면 폭에 맞춰 균등하게 나뉘도록 grid로 배치 — 완료 컬럼까지 한 화면에 다 보이게 */}
-        <div className="flex-1 w-full overflow-y-hidden pb-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 h-full">
+        {/* 컬럼 4개가 가로 스크롤 없이 화면 폭에 맞춰 균등하게 나뉘도록 grid로 배치 — 완료 컬럼까지 한 화면에 다 보이게.
+            높이를 여기서 가두지 않는다 — 예전엔 부모가 h-[70vh]로 고정하고 각 컬럼이 그 안에서 따로
+            스크롤됐는데(칸마다 스크롤바), 그러면 카드가 많은 칸은 잘려 보이고 스크롤도 4번 따로 해야 했다.
+            내용 높이만큼 자연스럽게 늘어나게 하고, 스크롤은 페이지 전체(오른쪽 하나)에 맡긴다. */}
+        <div className="w-full pb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
             <SortableContext items={COLUMNS.map((c) => c.id)}>
               {COLUMNS.map((col) => (
                 <KanbanColumn
@@ -412,13 +430,14 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
                   onReject={(t: any) => setRejectTarget(t)}
                   onRequestAssignment={openAssignConfirm}
                   processing={processing}
+                  currentUserId={user?.id}
                 />
               ))}
             </SortableContext>
           </div>
         </div>
         <DragOverlay>
-          {activeTask ? <SortableTask task={activeTask} members={members} onAssign={handleAssign} getDifficultyBadge={getDifficultyBadge} onClick={() => {}} isPM={isPM} processing={processing} /> : null}
+          {activeTask ? <SortableTask task={activeTask} members={members} onAssign={handleAssign} getDifficultyBadge={getDifficultyBadge} onClick={() => {}} isPM={isPM} processing={processing} currentUserId={user?.id} /> : null}
         </DragOverlay>
       </DndContext>
 

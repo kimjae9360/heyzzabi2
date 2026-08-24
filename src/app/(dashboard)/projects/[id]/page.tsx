@@ -37,12 +37,22 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuth();
-  
+  const isPM = user?.role === "PM";
+  // 담당자 재배정/일정 조율은 PM의 권한이고, 상태·진행률은 "내 업무면 내가 갱신"이 자연스럽다.
+  // 지금까지는 이 화면에 아무 권한 구분이 없어서 일반 유저가 남의 업무 진행률까지 바꿀 수 있었다.
+  const canEditTask = (task: Task) => isPM || task.assigneeId === user?.id;
+
   const [project, setProject] = useState<Project | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"KANBAN" | "WBS" | "SETTINGS">("KANBAN");
   const [search, setSearch] = useState("");
+
+  // Project Settings form
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsDescription, setSettingsDescription] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
 
   // Add Task Modal
   const [addModal, setAddModal] = useState(false);
@@ -64,6 +74,34 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       setLoading(false);
     });
   }, [id]);
+
+  useEffect(() => {
+    if (project) {
+      setSettingsName(project.name);
+      setSettingsDescription(project.description || "");
+    }
+  }, [project?.id]);
+
+  const handleSaveSettings = async () => {
+    if (!project || !settingsName.trim()) return;
+    setSavingSettings(true);
+    setSettingsSaved(false);
+    try {
+      const res = await fetch(`/api/projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: settingsName.trim(), description: settingsDescription }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProject({ ...project, name: data.data.name, description: data.data.description });
+        setSettingsSaved(true);
+        setTimeout(() => setSettingsSaved(false), 2000);
+      }
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     if (!project) return;
@@ -167,14 +205,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
+        {/* min-w-0이 없으면 옆의 통계 박스가 flex의 기본 shrink 동작 때문에 밀려서 찌그러지고,
+            그 안의 "완료 업무" 같은 한글 텍스트가 글자 단위로 세로 줄바꿈되는 문제가 있었다. */}
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <FolderKanban className="w-5 h-5 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
           </div>
           {project.description && <p className="text-muted-foreground">{project.description}</p>}
         </div>
-        <div className="flex items-center gap-5 bg-black/5 dark:bg-white/5 px-5 py-3 rounded-2xl border border-white/10 shadow-sm">
+        <div className="flex items-center gap-5 bg-black/5 dark:bg-white/5 px-5 py-3 rounded-2xl border border-white/10 shadow-sm shrink-0 whitespace-nowrap">
           <div className="flex flex-col">
             <span className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">진행률</span>
             <div className="flex items-center gap-3">
@@ -238,7 +278,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {/* Tab Content */}
       <div className="pt-2">
         {activeTab === "KANBAN" && (
-          <div className="flex h-[70vh]">
+          <div className="flex">
             <KanbanBoard projectId={id} initialTasks={filteredTasks} members={users} />
           </div>
         )}
@@ -265,7 +305,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                       <tr key={task.id} className="hover:bg-white/5 transition-colors group">
                         <td className="px-4 py-3 font-medium min-w-[200px]">{task.title}</td>
                         <td className="px-4 py-3">
-                          {task.status === "PENDING_APPROVAL" ? (
+                          {task.status === "PENDING_APPROVAL" || !canEditTask(task) ? (
                             <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded border", statusMeta?.color, "border-orange-400/30")}>
                               <SIcon className="w-3.5 h-3.5" /> {statusMeta?.label}
                             </span>
@@ -283,43 +323,68 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                             </select>
                           )}
                         </td>
+                        {/* 담당자 재배정은 PM의 권한 — 일반 유저는 자기 업무든 남의 업무든 여기서 담당자를 바꿀 수 없다 */}
                         <td className="px-4 py-3">
-                          <select
-                            value={task.assigneeId || ""}
-                            onChange={e => handleTaskUpdate(task.id, { assigneeId: e.target.value || null })}
-                            className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none"
-                          >
-                            <option value="">담당자 없음</option>
-                            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                          </select>
+                          {isPM ? (
+                            <select
+                              value={task.assigneeId || ""}
+                              onChange={e => handleTaskUpdate(task.id, { assigneeId: e.target.value || null })}
+                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none"
+                            >
+                              <option value="">담당자 없음</option>
+                              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                            </select>
+                          ) : (
+                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.assignee?.name || "담당자 없음"}</span>
+                          )}
                         </td>
+                        {/* 일정(WBS 시작/종료일) 조율도 PM의 권한 */}
                         <td className="px-4 py-3">
-                          <input
-                            type="date"
-                            value={task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : ""}
-                            onChange={e => handleTaskUpdate(task.id, { wbsStart: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                            className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <input
-                            type="date"
-                            value={task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : ""}
-                            onChange={e => handleTaskUpdate(task.id, { wbsEnd: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                            className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2 group-hover:opacity-100">
+                          {isPM ? (
                             <input
-                              type="range"
-                              min="0" max="100" step="5"
-                              value={task.progress || 0}
-                              onChange={e => handleTaskUpdate(task.id, { progress: parseInt(e.target.value) })}
-                              className="w-24 accent-primary"
+                              type="date"
+                              value={task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : ""}
+                              onChange={e => handleTaskUpdate(task.id, { wbsStart: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
                             />
-                            <span className="text-xs w-8 text-right text-muted-foreground">{task.progress || 0}%</span>
-                          </div>
+                          ) : (
+                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : "-"}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isPM ? (
+                            <input
+                              type="date"
+                              value={task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : ""}
+                              onChange={e => handleTaskUpdate(task.id, { wbsEnd: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
+                            />
+                          ) : (
+                            <span className="px-1 py-1 text-xs text-muted-foreground">{task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : "-"}</span>
+                          )}
+                        </td>
+                        {/* 진행률은 "내 업무"일 때만(+PM은 전체) 움직일 수 있다 — 예전엔 아무나 남의 업무
+                            진행률까지 바꿀 수 있었다(사용자가 실제로 발견한 버그) */}
+                        <td className="px-4 py-3">
+                          {canEditTask(task) ? (
+                            <div className="flex items-center gap-2 group-hover:opacity-100">
+                              <input
+                                type="range"
+                                min="0" max="100" step="5"
+                                value={task.progress || 0}
+                                onChange={e => handleTaskUpdate(task.id, { progress: parseInt(e.target.value) })}
+                                className="w-24 accent-primary"
+                              />
+                              <span className="text-xs w-8 text-right text-muted-foreground">{task.progress || 0}%</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
+                                <div className="h-full bg-muted-foreground/50 rounded-full" style={{ width: `${task.progress || 0}%` }} />
+                              </div>
+                              <span className="text-xs w-8 text-right text-muted-foreground">{task.progress || 0}%</span>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -339,13 +404,42 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <div className="max-w-md space-y-4">
               <div>
                 <label className="text-sm font-semibold mb-1 block text-muted-foreground">프로젝트명</label>
-                <input type="text" defaultValue={project.name} className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm" readOnly />
+                <input
+                  type="text"
+                  value={settingsName}
+                  onChange={e => setSettingsName(e.target.value)}
+                  readOnly={!isPM}
+                  className={cn(
+                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm",
+                    isPM && "focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  )}
+                />
               </div>
               <div>
                 <label className="text-sm font-semibold mb-1 block text-muted-foreground">설명</label>
-                <textarea defaultValue={project.description || ""} className="w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm" rows={3} readOnly />
+                <textarea
+                  value={settingsDescription}
+                  onChange={e => setSettingsDescription(e.target.value)}
+                  readOnly={!isPM}
+                  rows={3}
+                  className={cn(
+                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm",
+                    isPM && "focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  )}
+                />
               </div>
-              <p className="text-xs text-muted-foreground mt-4">* 상세 설정 기능은 준비 중입니다.</p>
+              {isPM ? (
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings || !settingsName.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {savingSettings ? <Loader2 className="w-4 h-4 animate-spin" /> : settingsSaved ? <CheckCircle2 className="w-4 h-4" /> : null}
+                  {settingsSaved ? "저장됨" : "저장하기"}
+                </button>
+              ) : (
+                <p className="text-xs text-muted-foreground">* 프로젝트 설정 수정은 PM만 가능합니다.</p>
+              )}
             </div>
           </div>
         )}

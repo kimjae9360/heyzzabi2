@@ -143,7 +143,7 @@ export default function TasksPage() {
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-3 text-muted-foreground mb-2">
           <ListTodo className="w-5 h-5 text-primary" />
-          <h1 className="text-3xl font-black text-foreground tracking-tight">업무 현황</h1>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">업무관리</h1>
         </div>
         <p className="text-muted-foreground">나의 업무를 관리하거나 전체 프로젝트의 진행 상태를 파악하세요.</p>
       </div>

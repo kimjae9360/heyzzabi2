@@ -11,7 +11,7 @@ export async function GET(
       where: { id },
       select: {
         id: true, name: true, email: true, role: true, techStack: true, certifications: true, pastProjects: true,
-        phone: true, department: true, employeeNo: true, position: true, jobTitle: true, status: true, hireDate: true,
+        phone: true, department: true, employeeNo: true, position: true, jobTitle: true, status: true, hireDate: true, resignDate: true,
       }
     });
     if (!user) {
@@ -31,8 +31,22 @@ export async function PATCH(
     const { id } = await params;
     const {
       techStack, certifications, pastProjects, phone, department, role, name,
-      employeeNo, position, jobTitle, status, hireDate,
+      employeeNo, position, jobTitle, status, hireDate, resignDate,
     } = await request.json();
+
+    // 퇴사일은 두 경로로 채워진다: (1) 수정 모달에서 직접 날짜를 입력하면 그 값을 그대로 쓰고,
+    // (2) 목록의 상태 드롭다운에서 곧바로 "퇴사"로 바꾸면(직접 입력값이 없으면) 오늘 날짜로 자동 기록한다.
+    // 반대로 퇴사 상태에서 다른 상태로 되돌리면(직접 지정이 없는 한) 기존 퇴사일을 지워 낡은 값이 남지 않게 한다.
+    let resignDateUpdate: Date | null | undefined = undefined;
+    if (resignDate !== undefined) {
+      resignDateUpdate = resignDate ? new Date(resignDate) : null;
+    } else if (status !== undefined) {
+      const current = await prisma.user.findUnique({ where: { id }, select: { status: true, resignDate: true } });
+      if (current) {
+        if (status === "RESIGNED" && !current.resignDate) resignDateUpdate = new Date();
+        else if (status !== "RESIGNED" && current.status === "RESIGNED") resignDateUpdate = null;
+      }
+    }
 
     const updated = await prisma.user.update({
       where: { id },
@@ -49,10 +63,11 @@ export async function PATCH(
         ...(jobTitle !== undefined && { jobTitle }),
         ...(status !== undefined && { status }),
         ...(hireDate !== undefined && { hireDate: hireDate ? new Date(hireDate) : null }),
+        ...(resignDateUpdate !== undefined && { resignDate: resignDateUpdate }),
       },
       select: {
         id: true, name: true, role: true, techStack: true, certifications: true, pastProjects: true,
-        phone: true, department: true, employeeNo: true, position: true, jobTitle: true, status: true, hireDate: true,
+        phone: true, department: true, employeeNo: true, position: true, jobTitle: true, status: true, hireDate: true, resignDate: true,
       }
     });
 

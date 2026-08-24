@@ -17,7 +17,7 @@ export default function DashboardContainer() {
       {/* Unified Header */}
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold">{isPM ? "대시보드" : "내 대시보드"}</h1>
+          <h1 className="text-3xl font-bold">대시보드</h1>
         </div>
       </div>
 

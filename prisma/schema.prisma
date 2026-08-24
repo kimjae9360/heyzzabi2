@@ -20,6 +20,7 @@ model User {
   jobTitle             String?   // 직무
   status               String    @default("ACTIVE") // ACTIVE | LEAVE | RESIGNED | LOCKED
   hireDate             DateTime?
+  resignDate           DateTime? // status가 RESIGNED로 바뀔 때 자동 기록(명시적으로 직접 입력하면 그 값 우선)
   slackEmail           String?
   githubEmail          String?
   techStack            String?

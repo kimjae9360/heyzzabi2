@@ -24,8 +24,11 @@ type Employee = {
   jobTitle: string | null;
   status: EmployeeStatus;
   hireDate: string | null;
+  resignDate: string | null;
   createdAt: string;
 };
+
+const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" }) : "-";
 
 type FilterStatus = "all" | EmployeeStatus;
 
@@ -55,7 +58,7 @@ export default function MembersPage() {
     // Edit Modal
   const [editModal, setEditModal] = useState<{
     id: string; name: string; department: string; role: string; techStack: string[]; certifications: string[]; phone: string;
-    employeeNo: string; position: string; jobTitle: string; status: EmployeeStatus; hireDate: string; pastProjects: string[];
+    employeeNo: string; position: string; jobTitle: string; status: EmployeeStatus; hireDate: string; resignDate: string; pastProjects: string[];
   } | null>(null);
   const [editing, setEditing] = useState(false);
 
@@ -128,6 +131,7 @@ export default function MembersPage() {
         jobTitle: editModal.jobTitle,
         status: editModal.status,
         hireDate: editModal.hireDate,
+        resignDate: editModal.resignDate,
         pastProjects: editModal.pastProjects.join(", "),
       }),
     });
@@ -183,8 +187,11 @@ const handlePasswordReset = async (id: string, name: string) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    if (res.ok) {
-      setMembers(prev => prev.map(m => m.id === id ? { ...m, status: status as EmployeeStatus } : m));
+    const data = await res.json();
+    if (res.ok && data.success) {
+      // 퇴사로 바꾸면 서버가 퇴사일을 자동으로 채워 응답하므로(반대로 되돌리면 지워서 응답하므로)
+      // status만 낙관적으로 반영하면 안 되고 서버가 돌려준 resignDate도 함께 반영해야 한다.
+      setMembers(prev => prev.map(m => m.id === id ? { ...m, status: data.data.status, resignDate: data.data.resignDate } : m));
       showToast("계정 상태가 변경되었습니다.");
     }
   };
@@ -304,6 +311,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                 <th className="px-6 py-4 font-semibold">직원</th>
                 <th className="px-6 py-4 font-semibold">부서 / 직급 / 직무</th>
                 <th className="px-6 py-4 font-semibold">기술 스택</th>
+                <th className="px-6 py-4 font-semibold">입사일 / 퇴사일</th>
                 <th className="px-6 py-4 font-semibold">역할</th>
                 <th className="px-6 py-4 font-semibold">상태</th>
                 {isPM && <th className="px-6 py-4 font-semibold text-center">설정</th>}
@@ -311,9 +319,9 @@ const handlePasswordReset = async (id: string, name: string) => {
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
-                <tr><td colSpan={6} className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></td></tr>
+                <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={6} className="py-16 text-center text-muted-foreground">검색 결과가 없습니다.</td></tr>
+                <tr><td colSpan={7} className="py-16 text-center text-muted-foreground">검색 결과가 없습니다.</td></tr>
               ) : (
                 filtered.map(member => (
                   <tr key={member.id} className="hover:bg-white/5 transition-colors">
@@ -350,6 +358,14 @@ const handlePasswordReset = async (id: string, name: string) => {
                           <span key={`c${i}`} className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-semibold">{c}</span>
                         ))}
                       </div>
+                    </td>
+
+                    {/* Hire / Resign date */}
+                    <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                      <p>{fmtDate(member.hireDate)}</p>
+                      {member.status === "RESIGNED" && (
+                        <p className="text-xs text-red-400 mt-0.5">퇴사 {fmtDate(member.resignDate)}</p>
+                      )}
                     </td>
 
                     {/* Role */}
@@ -432,6 +448,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                                     techStack: skills(member.techStack), certifications: skills(member.certifications), phone: member.phone || "",
                                     employeeNo: member.employeeNo || "", position: member.position || "", jobTitle: member.jobTitle || "",
                                     status: member.status, hireDate: member.hireDate ? member.hireDate.slice(0, 10) : "",
+                                    resignDate: member.resignDate ? member.resignDate.slice(0, 10) : "",
                                     pastProjects: skills(member.pastProjects),
                                   });
                                   setOpenMenuId(null);
@@ -722,15 +739,26 @@ const handlePasswordReset = async (id: string, name: string) => {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm font-semibold mb-1.5 block text-muted-foreground">계정 상태</label>
-                  <select
-                    value={editModal.status}
-                    onChange={e => setEditModal({ ...editModal, status: e.target.value as EmployeeStatus })}
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
-                  >
-                    {Object.keys(STATUS_META).map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-                  </select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold mb-1.5 block text-muted-foreground">계정 상태</label>
+                    <select
+                      value={editModal.status}
+                      onChange={e => setEditModal({ ...editModal, status: e.target.value as EmployeeStatus })}
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                    >
+                      {Object.keys(STATUS_META).map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold mb-1.5 block text-muted-foreground">퇴사일</label>
+                    <input
+                      type="date"
+                      value={editModal.resignDate}
+                      onChange={e => setEditModal({ ...editModal, resignDate: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                  </div>
                 </div>
               </div>
 

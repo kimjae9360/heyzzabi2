@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -67,17 +67,23 @@ export default function DocumentsPage() {
   const [project, setProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTabState] = useState<PipelineTab>("proposal");
-  // 다른 탭 갔다가 문서생성으로 돌아와도 마지막에 보던 하위 탭이 그대로 보이도록 localStorage에 기억해둔다.
-  // 서버 렌더링 시점엔 localStorage가 없으므로 마운트 후에만 복원한다(그래야 하이드레이션도 안전함).
-  useEffect(() => {
-    const saved = localStorage.getItem("hz_documents_tab") as PipelineTab | null;
-    if (saved === "proposal" || saved === "reqSpec" || saved === "taskAssignment") setActiveTabState(saved);
-  }, []);
-  const setActiveTab = (tab: PipelineTab) => {
-    setActiveTabState(tab);
-    localStorage.setItem("hz_documents_tab", tab);
-  };
+  const setActiveTab = (tab: PipelineTab) => setActiveTabState(tab);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+
+  // 문서가 지금 파이프라인의 어느 단계에 있는지 — 목록 미리보기의 파이프라인 점, 상단 탭의
+  // 진행 표시, "문서를 고르면 그 문서의 현재 단계가 첫 화면으로 보인다"에 전부 이 값을 쓴다.
+  const stageOf = (doc: ProjectDocument): PipelineTab => {
+    if (doc.reqSpecStatus === "APPROVED") return "taskAssignment";
+    if (doc.proposalStatus === "APPROVED") return "reqSpec";
+    return "proposal";
+  };
+  // 목록에서 문서를 고르면(직접 클릭이든, 생성 직후 자동이든) 항상 "그 문서가 지금 있는 단계"를
+  // 첫 화면으로 보여준다 — 예전엔 마지막으로 보던 탭(전역 상태)이 그대로 유지돼서, 업무분배 탭을
+  // 보다가 아직 기획서 단계인 다른 문서를 고르면 뜬금없는 화면이 나오는 문제가 있었다.
+  const selectDoc = (doc: ProjectDocument) => {
+    setSelectedDocId(doc.id);
+    setActiveTab(stageOf(doc));
+  };
 
   // 히스토리 등 다른 화면에서 "문서생성에서 열기"로 넘어올 때 ?docId=...&tab=... 쿼리로
   // 특정 문서·탭을 바로 열어준다. localStorage로 복원한 탭보다 이 쪽이 우선한다(방금 클릭한 의도이므로).
@@ -93,6 +99,7 @@ export default function DocumentsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED">("all");
 
   // preferredId가 있으면 그 프로젝트를 바로 보여준다(예: 문서 작성 모달에서 새 프로젝트를 만든 직후) —
   // 없으면 기존처럼 가장 최근(첫 번째) 프로젝트를 기본으로 본다(단일 프로젝트 전제).
@@ -130,7 +137,7 @@ export default function DocumentsPage() {
   );
 
   useEffect(() => {
-    if (!selectedDocId && documents.length > 0) setSelectedDocId(documents[0].id);
+    if (!selectedDocId && documents.length > 0) selectDoc(documents[0]);
   }, [documents, selectedDocId]);
 
   const patchDoc = (docId: string, patch: Partial<ProjectDocument>) => {
@@ -343,25 +350,87 @@ export default function DocumentsPage() {
     );
   }
 
+  // 업무분배 단계는 문서 자체 상태값이 없어 배분 진행도로 배지를 만든다 — 목록 미리보기와
+  // 상세 패널 진입 시 둘 다 이 함수로 통일해서 계산 방식이 갈라지지 않게 한다.
+  const taskAssignMetaFor = (doc: ProjectDocument) => {
+    const docTasks = (project.tasks ?? []).filter((t: any) => t.sourceDocumentId === doc.id);
+    return docTasks.length === 0
+      ? TASK_ASSIGN_META.NOT_GENERATED
+      : docTasks.every((t: any) => t.assigneeId)
+      ? TASK_ASSIGN_META.ASSIGNED
+      : TASK_ASSIGN_META.NEEDS_ASSIGNMENT;
+  };
+  // 목록 행에는 "그 문서가 지금 있는 단계"의 배지를 보여준다(예전엔 전역 activeTab 기준이라,
+  // 업무분배 탭을 보고 있으면 아직 기획서 단계인 문서도 업무분배 배지가 붙어 헷갈렸다).
+  const stageMeta = (doc: ProjectDocument, stage: PipelineTab): { label: string; className: string; icon: any } =>
+    stage === "taskAssignment" ? taskAssignMetaFor(doc) : (STATUS_META[doc[STATUS_FIELD[stage]]] ?? STATUS_META.DRAFT);
+  // 필터 칩은 문서 상태 어휘(초안/검토요청중/승인됨/반려됨)로 노출한다 — 업무분배 단계는 거기
+  // 들어서는 조건 자체가 "요구사항정의서 승인"이므로 "승인됨"으로 자연스럽게 묶인다.
+  const docStatusKey = (doc: ProjectDocument): "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED" => {
+    const stage = stageOf(doc);
+    return stage === "taskAssignment" ? "APPROVED" : (doc[STATUS_FIELD[stage]] as any);
+  };
+  const DOC_FILTERS = [
+    { key: "all" as const, label: "전체" },
+    { key: "DRAFT" as const, label: "초안" },
+    { key: "PENDING_REVIEW" as const, label: "검토요청중" },
+    { key: "APPROVED" as const, label: "승인됨" },
+    { key: "REJECTED" as const, label: "반려됨" },
+  ];
+  const docFilterCounts = {
+    all: documents.length,
+    DRAFT: documents.filter(d => docStatusKey(d) === "DRAFT").length,
+    PENDING_REVIEW: documents.filter(d => docStatusKey(d) === "PENDING_REVIEW").length,
+    APPROVED: documents.filter(d => docStatusKey(d) === "APPROVED").length,
+    REJECTED: documents.filter(d => docStatusKey(d) === "REJECTED").length,
+  };
+  const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docStatusKey(d) === docFilter);
+
+  const PIPELINE_STEPS: PipelineTab[] = ["proposal", "reqSpec", "taskAssignment"];
+  const stepDone = (doc: ProjectDocument | null, step: PipelineTab): boolean => {
+    if (!doc) return false;
+    if (step === "proposal") return doc.proposalStatus === "APPROVED";
+    if (step === "reqSpec") return doc.reqSpecStatus === "APPROVED";
+    return false; // 업무분배는 "완료"라는 개념 자체가 없어(계속 추가 배분 가능) 항상 false
+  };
+
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-500">
-      {/* Header + Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-8">
+      {/* Header + Pipeline stepper — 기획서 → 요구사항정의서 → 업무분배가 실제로 하나로
+          이어지는 파이프라인임을 보이게: 완료된 단계는 체크, 지금 선택한 문서가 있는 단계는
+          강조 링, 아직 안 온 단계는 흐리게. 탭 자체는 항상 클릭 가능(과거 단계도 열람 목적). */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-8 flex-wrap">
           <h1 className="text-2xl font-bold shrink-0">문서생성</h1>
-          <div className="flex items-center gap-6 border-b border-transparent">
-            {(["proposal", "reqSpec", "taskAssignment"] as PipelineTab[]).map(type => (
-              <button
-                key={type}
-                onClick={() => setActiveTab(type)}
-                className={cn(
-                  "pb-1 text-base font-medium transition-colors border-b-2",
-                  activeTab === type ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {PIPELINE_TAB_LABEL[type]}
-              </button>
-            ))}
+          <div className="flex items-center">
+            {PIPELINE_STEPS.map((step, i) => {
+              const done = stepDone(selectedDoc, step);
+              const isDocStage = selectedDoc ? stageOf(selectedDoc) === step : false;
+              const isViewed = activeTab === step;
+              const prevDone = i > 0 ? stepDone(selectedDoc, PIPELINE_STEPS[i - 1]) : false;
+              return (
+                <Fragment key={step}>
+                  {i > 0 && <div className={cn("h-0.5 w-6 md:w-10 rounded-full transition-colors", prevDone ? "bg-emerald-500/50" : "bg-white/10")} />}
+                  <button
+                    onClick={() => setActiveTab(step)}
+                    className={cn(
+                      "flex items-center gap-2 pb-1 px-1 text-base font-medium transition-colors border-b-2",
+                      isViewed ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className={cn(
+                      "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors",
+                      done ? "bg-emerald-500 text-white"
+                        : isDocStage ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
+                        : "bg-black/10 dark:bg-white/10 text-muted-foreground"
+                    )}>
+                      {done ? <CheckCircle2 className="w-3 h-3" /> : i + 1}
+                    </span>
+                    {PIPELINE_TAB_LABEL[step]}
+                  </button>
+                </Fragment>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -378,24 +447,33 @@ export default function DocumentsPage() {
             <Plus className="w-4 h-4" /> 새 회의록 / 문서
           </button>
 
+          {documents.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {DOC_FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setDocFilter(f.key)}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all",
+                    docFilter === f.key ? "bg-primary/15 text-primary" : "bg-black/5 dark:bg-white/5 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {f.label}
+                  <span className="text-[9px] opacity-70">{docFilterCounts[f.key]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-2">
             {documents.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-10">등록된 문서가 없습니다.<br />회의록을 등록하세요.</p>
+            ) : filteredDocuments.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">해당하는 문서가 없습니다.</p>
             ) : (
-              documents.map(doc => {
-                let meta: { label: string; className: string; icon: any };
-                if (activeTab === "taskAssignment") {
-                  const docTasks = (project.tasks ?? []).filter((t: any) => t.sourceDocumentId === doc.id);
-                  meta = docTasks.length === 0
-                    ? TASK_ASSIGN_META.NOT_GENERATED
-                    : docTasks.every((t: any) => t.assigneeId)
-                    ? TASK_ASSIGN_META.ASSIGNED
-                    : TASK_ASSIGN_META.NEEDS_ASSIGNMENT;
-                } else {
-                  // API가 상태값을 검증하지 않아 이론상 STATUS_META에 없는 값이 저장될 수 있다 —
-                  // 그런 경우에도 페이지 전체가 죽지 않도록 방어적으로 DRAFT로 대체한다.
-                  meta = STATUS_META[doc[STATUS_FIELD[activeTab]]] ?? STATUS_META.DRAFT;
-                }
+              filteredDocuments.map(doc => {
+                const stage = stageOf(doc);
+                const meta = stageMeta(doc, stage);
                 const Icon = meta.icon;
                 return (
                   <div
@@ -407,8 +485,23 @@ export default function DocumentsPage() {
                         : "border-transparent hover:bg-black/5 dark:hover:bg-white/5"
                     )}
                   >
-                    <button onClick={() => setSelectedDocId(doc.id)} className="flex-1 min-w-0 text-left">
+                    <button onClick={() => selectDoc(doc)} className="flex-1 min-w-0 text-left">
                       <p className="font-semibold text-sm truncate mb-1.5">{doc.title}</p>
+                      {/* 미니 파이프라인 — 이 문서가 지금 3단계 중 어디에 있는지 한눈에 */}
+                      <div className="flex items-center gap-1 mb-1.5">
+                        {PIPELINE_STEPS.map((step, i) => (
+                          <Fragment key={step}>
+                            {i > 0 && <div className={cn("h-px w-3", stepDone(doc, PIPELINE_STEPS[i - 1]) ? "bg-emerald-500/40" : "bg-white/10")} />}
+                            <div
+                              title={PIPELINE_TAB_LABEL[step]}
+                              className={cn(
+                                "w-1.5 h-1.5 rounded-full shrink-0",
+                                step === stage ? "bg-primary ring-2 ring-primary/25" : stepDone(doc, step) ? "bg-emerald-500" : "bg-black/10 dark:bg-white/15"
+                              )}
+                            />
+                          </Fragment>
+                        ))}
+                      </div>
                       <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold", meta.className)}>
                         <Icon className="w-3 h-3" /> {meta.label}
                       </span>
@@ -493,7 +586,13 @@ export default function DocumentsPage() {
       {newDocModalOpen && (
         <NewDocumentModal
           defaultProjectId={project?.id}
-          onClose={(createdProjectId) => { setNewDocModalOpen(false); fetchProject(createdProjectId); }}
+          onClose={async (createdProjectId, createdDocId) => {
+            setNewDocModalOpen(false);
+            await fetchProject(createdProjectId);
+            // 방금 만든 문서를 곧바로 선택 상태로 — 안 그러면 목록은 갱신됐는데 화면엔 계속
+            // 이전에 보던(엉뚱한) 문서가 남아있어서 "내가 만든 게 어디 갔지" 하고 헷갈리게 된다.
+            if (createdDocId) { setSelectedDocId(createdDocId); setActiveTab("proposal"); }
+          }}
         />
       )}
 
