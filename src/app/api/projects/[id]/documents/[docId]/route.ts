@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 기획서/요구사항정의서 각각이 독립적으로 거치는 검토 상태값 (Prisma 문자열 컬럼이라 여기서 화이트리스트로 검증)
 const VALID_DOC_STATUSES = ["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"];
 // 검토요청 전(DRAFT) 또는 반려(REJECTED) 상태에서만 삭제/원본수정 허용 — documents/page.tsx의
 // isDocDeletable과 반드시 같은 규칙이어야 한다. 프론트에만 있던 규칙이라 URL만 알면 우회 가능했던
@@ -45,6 +46,8 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "검토 중이거나 승인된 요구사항정의서는 수정할 수 없습니다." }, { status: 400 });
     }
 
+    // 요청 바디에 포함된 필드만 골라서 업데이트한다 — 나머지 필드는 undefined 체크로 걸러져
+    // 기존 값이 그대로 유지된다(부분 업데이트 패턴)
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
     if (rawContent !== undefined) updateData.rawContent = rawContent;
@@ -81,6 +84,7 @@ export async function DELETE(
     if (!doc) {
       return NextResponse.json({ success: false, error: "문서를 찾을 수 없습니다." }, { status: 404 });
     }
+    // 기획서/요구사항정의서 둘 중 하나라도 검토중(PENDING_REVIEW)이거나 승인(APPROVED)이면 삭제 불가
     if (!isUnlockedStatus(doc.proposalStatus) || !isUnlockedStatus(doc.reqSpecStatus)) {
       return NextResponse.json({ success: false, error: "검토 요청 중이거나 승인된 문서는 삭제할 수 없습니다." }, { status: 400 });
     }

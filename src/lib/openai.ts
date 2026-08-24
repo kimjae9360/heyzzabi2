@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 
+// API 키 미설정을 일반 Error와 구분해서 던지기 위한 커스텀 에러 - 화면에 사용자 친화적 안내 메시지를 그대로 노출할 수 있다.
 export class AIConfigError extends Error {
   constructor() {
     super('OPENAI_API_KEY가 설정되지 않았습니다. .env 파일에 키를 입력한 뒤 다시 시도해 주세요.');
@@ -9,6 +10,8 @@ export class AIConfigError extends Error {
 
 let client: OpenAI | null = null;
 
+// 모듈 로드 시점이 아니라 실제 호출 시점에 클라이언트를 만든다(지연 초기화).
+// env 값이 아직 준비되지 않은 시점에 import만 해도 에러가 나는 걸 막고, 이후 호출부터는 같은 인스턴스를 재사용한다.
 function getClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new AIConfigError();
@@ -55,6 +58,8 @@ async function callJson<T>(system: string, user: string, temperature = 0.2): Pro
   return JSON.parse(content) as T;
 }
 
+// callJson과 재시도/에러 처리 로직은 동일하지만 응답 형식을 JSON으로 강제하지 않는다.
+// 심층 리서치 보고서처럼 마크다운 장문을 그대로 받아야 할 때 사용.
 async function callText(system: string, user: string): Promise<string> {
   const openai = getClient();
   const completion = await withRetry(() =>
@@ -71,6 +76,7 @@ async function callText(system: string, user: string): Promise<string> {
   return content;
 }
 
+// analyzeMeetingAndDraftProposal의 반환 타입: 1단계(요약) 결과와 2단계(기획서 작성) 결과를 합친 형태.
 export interface MeetingAnalysis {
   summary: string;
   agenda: string[];
@@ -95,6 +101,7 @@ export async function analyzeMeetingAndDraftProposal(meetingTitle: string, meeti
   return { ...summaryStage, ...proposalStage };
 }
 
+// breakdownProposalIntoTasks / breakdownTaskIntoSubtasks가 공통으로 반환하는 업무 초안 한 건의 형태.
 export interface TaskDraft {
   title: string;
   description: string;
@@ -130,6 +137,8 @@ export async function classifyDocument(title: string, content: string): Promise<
   return result.category;
 }
 
+// 지식망 RAG 검색용 임베딩 생성. 8000자로 자르는 건 임베딩 모델의 토큰 한도를 넘겨 에러 나는 걸 막기 위함
+// (문서 전체가 아니라 검색 매칭용 벡터만 필요하므로 앞부분만 잘라도 충분).
 export async function embedText(text: string): Promise<number[]> {
   const openai = getClient();
   const result = await withRetry(() =>
@@ -141,6 +150,8 @@ export async function embedText(text: string): Promise<number[]> {
   return result.data[0].embedding;
 }
 
+// 두 임베딩 벡터의 코사인 유사도(내적 / 크기의 곱) 계산 - 값이 1에 가까울수록 의미가 비슷한 문서.
+// RAG 검색에서 질문 임베딩과 문서 임베딩을 비교해 관련 문서 순위를 매기는 데 쓰인다.
 export function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
@@ -217,6 +228,7 @@ export async function runDeepResearch(question: string, packet: LocalPacketDoc[]
   return { content: header + report, degraded };
 }
 
+// answerGlobalSearch에 넘길 직원별 실시간 워크로드/업무 현황 스냅샷 (DB에서 조회해 미리 만들어 전달).
 export interface EmployeeWorkloadRow {
   name: string;
   department: string;

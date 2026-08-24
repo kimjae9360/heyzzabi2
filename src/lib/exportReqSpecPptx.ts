@@ -1,7 +1,10 @@
 import type { ReqSpecDoc } from "@/lib/documentTemplates";
 
+// 슬라이드 한 장에 표를 다 넣으면 행이 넘쳐 글자가 깨지므로, 한 슬라이드에 담을 최대 행 수를 정해두고
+// 이보다 많으면 여러 슬라이드로 나눠 찍는다(아래 chunkCount 계산에서 사용).
 const ROWS_PER_SLIDE = 8;
 
+// ReqSpecDoc(요구사항정의서 단일 스키마)을 표 형태 슬라이드로 페이지네이션해서 내보낸다.
 export async function exportReqSpecPptx(doc: ReqSpecDoc, title: string) {
   const PptxGenJS = (await import("pptxgenjs")).default;
   const pptx = new PptxGenJS();
@@ -26,8 +29,11 @@ export async function exportReqSpecPptx(doc: ReqSpecDoc, title: string) {
   ];
 
   const items = doc.items.length ? doc.items : [];
+  // 항목이 하나도 없어도 "항목 없음" 슬라이드는 한 장 보여줘야 하므로 최소 1로 보정.
   const chunkCount = Math.max(1, Math.ceil(items.length / ROWS_PER_SLIDE));
 
+  // ROWS_PER_SLIDE개씩 잘라(slice) 슬라이드를 순서대로 채운다 - 라이브러리의 자동 페이지 분할(autoPage) 대신
+  // 우리가 직접 청크 단위로 나눠서 각 슬라이드에 몇 번째 페이지인지(1/3 등) 표시할 수 있게 한다.
   for (let c = 0; c < chunkCount; c++) {
     const chunk = items.slice(c * ROWS_PER_SLIDE, (c + 1) * ROWS_PER_SLIDE);
     const slide = pptx.addSlide();
@@ -48,9 +54,11 @@ export async function exportReqSpecPptx(doc: ReqSpecDoc, title: string) {
     ];
     slide.addTable(rows, {
       x: 0.4, y: 1.0, w: 9.2,
+      // ID/대분류/중분류/요구사항명/기능설명/비고 순서대로, 내용이 긴 컬럼(기능설명)에 더 넓은 폭을 배분.
       colW: [1.0, 0.9, 0.9, 1.7, 3.4, 1.3],
       fontSize: 9, color: TITLE_COLOR,
       border: { type: "solid", color: "E2E8F0", pt: 1 },
+      // 페이지 분할은 위에서 이미 chunk 단위로 직접 처리했으므로 라이브러리의 자동 분할은 꺼둔다.
       autoPage: false,
       valign: "top",
     });

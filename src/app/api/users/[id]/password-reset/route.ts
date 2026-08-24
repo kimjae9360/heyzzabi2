@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 관리자가 다른 사용자의 비밀번호를 강제로 초기화한다 (비밀번호를 잊었을 때 등).
+// 신규 계정 생성 때와 동일하게 고정 초기값("1111")으로 되돌리고, mustChangePassword를 다시 true로
+// 세팅해 다음 로그인 시 사용자가 반드시 새 비밀번호로 바꾸도록 강제한다.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

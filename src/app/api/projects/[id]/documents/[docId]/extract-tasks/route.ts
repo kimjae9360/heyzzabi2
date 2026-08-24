@@ -21,10 +21,12 @@ export async function POST(
       return NextResponse.json({ error: "요구사항정의서가 승인된 이후에 업무를 생성할 수 있습니다." }, { status: 400 });
     }
 
+    // 승인 전 초안 상태의 요구사항으로 업무를 만들면 이후 요구사항이 바뀔 때마다
+    // 이미 만든 업무들이 전부 어긋나므로, 승인된 확정 문서에서만 업무를 생성하도록 막는다.
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
-      temperature: 0.1,
+      temperature: 0.1, // 낮은 temperature: 같은 요구사항서로 재생성해도 결과가 크게 흔들리지 않게
       messages: [
         {
           role: "system",
@@ -51,12 +53,14 @@ export async function POST(
           data: {
             title: task.title || "제목 없음",
             description: task.description || "",
-            status: "BACKLOG",
+            status: "BACKLOG", // 생성 직후에는 아직 담당자가 없으므로 백로그 상태로 시작
             difficulty: task.difficulty || "보통",
             difficultyReason: task.difficultyReason || null,
             estimatedHours: typeof task.estimatedHours === "number" ? task.estimatedHours : null,
             progress: 0,
             projectId: params.id,
+            // 이 문서에서 나온 업무임을 표시 — assign-tasks 라우트가 이 값으로
+            // "이 문서에서 나왔지만 아직 담당자가 없는 업무"를 한 번에 찾아 배치 배정한다.
             sourceDocumentId: params.docId,
           },
         })

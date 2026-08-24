@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 전체 멤버(계정) 목록 조회.
 export async function GET() {
   try {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
     });
-    
+
     // Sanitize output
+    // 비밀번호(해시) 필드는 클라이언트로 절대 내려보내지 않도록 응답 전에 제거한다.
     const safeUsers = users.map(u => {
       const { password, ...rest } = u;
       return rest;
@@ -23,6 +25,9 @@ export async function GET() {
   }
 }
 
+// 관리자가 이메일만으로 새 멤버 계정을 발급한다(초대 방식).
+// 임시 비밀번호로 계정을 만들고 mustChangePassword 플래그를 세워두면,
+// 해당 사용자가 최초 로그인 시 비밀번호를 반드시 바꾸도록 강제하는 흐름으로 이어진다.
 export async function POST(request: Request) {
   try {
     const { email, role } = await request.json();
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
         email,
         password: "temp", // Default temp password
         name: "",
-        role: role || "MEMBER",
+        role: role || "MEMBER", // role을 지정하지 않으면 일반 팀원(MEMBER)으로 생성
         mustChangePassword: true,
       },
     });

@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 
+// 채팅창을 열 때 지금까지의 대화 기록 전체를 시간순으로 내려준다(페이지네이션 없음).
 export async function GET() {
   try {
     const messages = await prisma.chatMessage.findMany({
@@ -41,11 +42,15 @@ export async function POST(req: Request) {
       id: true, name: true, email: true, role: true, department: true,
       position: true, jobTitle: true, status: true, techStack: true, certifications: true, pastProjects: true,
     } as const;
+    // 벡터 검색/RAG 없이 전체 프로젝트·업무·팀원 데이터를 통째로 JSON으로 만들어 프롬프트에 넣는
+    // 방식이다 — 구현이 단순하고 정확하지만, 데이터가 많아질수록 매 요청 토큰 비용이 커진다.
     const projects = await prisma.project.findMany({
       include: { tasks: { include: { assignee: { select: memberSelect } } } },
     });
     const members = await prisma.user.findMany({ select: memberSelect });
 
+    // 아래 CRITICAL INSTRUCTION이 이 챗봇을 "내부 데이터에만 답하는" 그라운딩된 챗봇으로 만든다 —
+    // 모델이 아는 일반 지식으로 답하지 못하게 막아 잘못된 정보(환각)를 방지한다.
     const systemPrompt = `
 You are the internal AI Assistant for HeyZzabi, a project management system.
 CRITICAL INSTRUCTION: You MUST ONLY answer questions based on the internal project data provided below.
@@ -61,6 +66,7 @@ ${JSON.stringify(members, null, 2)}
 
     const apiMessages: any[] = [
       { role: 'system', content: systemPrompt },
+      // DB에는 'ai'로 저장하지만 OpenAI API가 요구하는 role 값은 'assistant'이므로 변환해준다
       ...previousMessages.map(m => ({ role: m.role === 'ai' ? 'assistant' : m.role, content: m.content }))
     ];
 

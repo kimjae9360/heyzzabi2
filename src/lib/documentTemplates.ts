@@ -30,6 +30,8 @@ export type ProposalDoc = {
   projectPeriod?: ProjectPeriod;
 };
 
+// 기획서 초안을 여러 관점(예: MVP 중심 / 기능 확장 중심)으로 동시에 생성했을 때 그 중 하나.
+// 사용자가 여러 안을 비교해보고 하나를 선택하는 화면에서 쓰인다.
 export type ProposalDraftOption = {
   label: "1안" | "2안" | "3안";
   angle: string; // 이 안이 원본을 어떤 관점으로 재구성했는지 (예: "MVP 중심")
@@ -50,6 +52,10 @@ export type ReqSpecDoc = {
   items: ReqSpecRow[];
 };
 
+// 아래 parse* 함수들은 모두 같은 패턴: DB에는 JSON 문자열(raw text)로 저장돼 있는 문서를
+// 화면/엑스포트에서 쓸 수 있는 타입 객체로 안전하게 되돌린다. raw가 없거나 JSON이 깨져 있어도
+// (예: AI 응답 파싱 실패, 마이그레이션 이전 데이터) 예외를 던지지 않고 null/빈 배열을 반환해
+// 호출부가 별도 try/catch 없이 "문서 없음"으로 처리할 수 있게 한다.
 export function parseProposalDoc(raw: string | null): ProposalDoc | null {
   if (!raw) return null;
   try {

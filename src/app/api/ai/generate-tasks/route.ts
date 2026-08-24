@@ -4,6 +4,9 @@ import OpenAI from 'openai';
 // API 라우트 캐싱 방지 (항상 최신 결과 반환)
 export const dynamic = 'force-dynamic';
 
+// 회의록/기획서 등 임의의 텍스트(contextText)를 넣으면 업무(Task) 목록만 뽑아 돌려주는
+// 범용 생성기다. parse-meeting과 달리 프로젝트 이름/설명은 만들지 않고, DB에도 저장하지
+// 않는다 — 호출자가 결과를 미리보기하거나 직접 저장 여부를 결정하는 용도로 보인다.
 export async function POST(req: Request) {
   try {
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
@@ -34,6 +37,7 @@ export async function POST(req: Request) {
 }
 5. JSON 포맷 외의 어떠한 인사말이나 추가 설명도 달지 마십시오.`;
 
+    // 다른 AI 라우트들(gpt-4o-mini)과 달리 더 크고 성능이 높은 gpt-4o를 사용한다.
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -49,6 +53,8 @@ export async function POST(req: Request) {
     // JSON 파싱 검증
     try {
       const parsed = JSON.parse(aiContent || '{"tasks": []}');
+      // 프롬프트대로라면 {"tasks":[...]}가 와야 하지만, 혹시 모델이 배열을 바로 반환해도
+      // 처리할 수 있게 방어적으로 둘 다 허용한다.
       const tasksArray = Array.isArray(parsed.tasks) ? parsed.tasks : (Array.isArray(parsed) ? parsed : []);
       return NextResponse.json({ success: true, data: tasksArray });
     } catch (e) {

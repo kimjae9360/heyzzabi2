@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 최초 로그인 후 온보딩 처리: 임시 비밀번호를 사용자가 직접 정한 값으로 바꾸고 프로필 정보를 채운다.
 export async function POST(request: Request) {
   try {
     const { email, password, name, department, phone, techStack, certifications, pastProjects } = await request.json();
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // 온보딩 시점에는 아직 세션/id가 없고 로그인 때 받은 email만 알고 있으므로 email로 조회한다.
     const user = await prisma.user.update({
       where: { email },
       data: {

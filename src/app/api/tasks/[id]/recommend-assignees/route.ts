@@ -6,6 +6,9 @@ const toList = (s: string | null) => (s ? s.split(",").map(v => v.trim()).filter
 
 // FR-05-016 / FR-05-017: 기술스택 · 현재 업무량 · 유사 업무 경험 · 난이도를 근거로 담당자를 추천하고,
 // 추천마다 기술 적합도 / 업무 여유도 / 유사 업무 경험 근거를 함께 제공한다.
+// 문서 단위로 한 번에 배정하는 assign-tasks와 달리 이 라우트는 업무 1건만 대상으로 한다 —
+// 칸반 보드에서 담당자를 드래그로 배정할 때 쓰이며, 단건이라 배치 컨텍스트가 없으므로
+// WBS 날짜는 계산하지 않고 후보 추천(최대 3명)까지만 반환한다.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -39,7 +42,7 @@ export async function POST(
     activeCounts.forEach(c => { if (c.assigneeId) workloadMap[c.assigneeId] = c._count.assigneeId; });
 
     const candidates = members
-      .filter(m => m.id !== task.assigneeId)
+      .filter(m => m.id !== task.assigneeId) // 이미 이 업무를 맡고 있는 사람은 재추천할 필요가 없으므로 제외
       .map((m, index) => ({
         index, // LLM이 UUID를 그대로 못 옮겨적는 경우가 많아 인덱스로 참조시킨다
         userId: m.id,
@@ -93,7 +96,7 @@ export async function POST(
     const byIndex: Record<number, typeof candidates[number]> = {};
     candidates.forEach(c => { byIndex[c.index] = c; });
     const recommendations = recs
-      .filter(r => byIndex[r.candidateIndex])
+      .filter(r => byIndex[r.candidateIndex]) // AI가 존재하지 않는 index를 잘못 반환한 경우 방어적으로 걸러낸다
       .map(r => {
         const c = byIndex[r.candidateIndex];
         return { userId: c.userId, name: c.name, currentActiveTasks: c.currentActiveTasks, fitScore: r.fitScore, techFit: r.techFit, workloadFit: r.workloadFit, experienceFit: r.experienceFit };

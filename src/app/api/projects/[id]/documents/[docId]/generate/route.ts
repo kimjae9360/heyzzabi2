@@ -7,6 +7,9 @@ const NO_HALLUCINATION_RULE =
   "[절대 규칙] 원본에 명시되지 않은 사실, 기능, 수치, 일정은 절대 추가하거나 지어내지 마라(No hallucination). " +
   "원본에서 확인할 수 없는 항목은 비워두거나 생략하라. 근거 없는 추측으로 채우지 마라.";
 
+// AI 문서 파이프라인의 핵심 엔드포인트: OpenAI를 호출해 기획서 또는 요구사항정의서를 생성/재생성한다.
+// 같은 ProjectDocument row 안에서 proposal*/reqSpec* 필드가 각각 독립적으로 관리되므로,
+// type 값에 따라 어느 쪽 필드를 채울지 분기한다.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; docId: string }> }
@@ -17,6 +20,8 @@ export async function POST(
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { docId } = await params;
     const body = await request.json();
+    // type: 어떤 문서를 생성할지 지정 — 'proposal'(기획서) 또는 'reqSpec'(요구사항정의서).
+    // 이 둘은 파이프라인 순서가 고정되어 있어(회의록→기획서→요구사항정의서) 아래 if/else if로 분기한다.
     const { type, autoApprove } = body; // 'proposal' | 'reqSpec'
     // PM이 직접 에이전트를 실행하는 경우: PM에게 다시 검토요청을 보내는 건 의미가 없으므로
     // 검토 단계 없이 바로 승인 상태로 만든다(FR-05-021과 같은 원칙 — 이미 근거를 보고 본인이 확정하는 것).
@@ -32,8 +37,11 @@ export async function POST(
     }
 
     if (type === "proposal") {
+      // 기획서는 반드시 회의록 원본(rawContent)이 있어야 생성 가능 — 파이프라인의 첫 단계
       if (!doc.rawContent) return NextResponse.json({ error: "원본 회의록이 없습니다." }, { status: 400 });
 
+      // response_format: json_object로 모델이 순수 JSON만 반환하도록 강제하고,
+      // temperature: 0.0으로 출력을 최대한 결정적으로 만들어 매번 결과가 크게 달라지지 않게 한다
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
@@ -68,6 +76,8 @@ export async function POST(
 
       return NextResponse.json({ content: proposalDoc, status: resultStatus });
     } else if (type === "reqSpec") {
+      // 요구사항정의서는 기획서가 존재할 뿐 아니라 승인(APPROVED)까지 끝나야 생성 가능하다 —
+      // 검토 안 된 기획서를 근거로 다음 문서를 만들면 잘못된 내용이 그대로 전파되기 때문
       if (!doc.proposalContent) return NextResponse.json({ error: "기획서가 없습니다." }, { status: 400 });
       if (doc.proposalStatus !== "APPROVED") {
         return NextResponse.json({ error: "기획서가 승인된 이후에 요구사항정의서를 생성할 수 있습니다." }, { status: 400 });
@@ -93,6 +103,7 @@ export async function POST(
       });
 
       const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      // 모델이 items를 빠뜨려도 undefined가 아니라 빈 배열로 정규화해 프론트에서 안전하게 map할 수 있게 한다
       const reqSpecDoc: ReqSpecDoc = { items: parsed.items || [] };
 
       await prisma.projectDocument.update({

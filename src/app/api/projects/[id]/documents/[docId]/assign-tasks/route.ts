@@ -36,6 +36,8 @@ export async function POST(
       select: { id: true, name: true, techStack: true, certifications: true, pastProjects: true, department: true, jobTitle: true },
     });
     const members = membersRaw.filter(m => m.name?.trim());
+    // 현재 업무량: 진행 중 + 배분승인대기 상태의 업무 수를 담당자별로 집계해서
+    // AI 프롬프트의 "업무 여유도" 판단 근거(currentActiveTasks)로 넘긴다.
     const activeCounts = await prisma.task.groupBy({
       by: ["assigneeId"],
       _count: { assigneeId: true },
@@ -45,7 +47,7 @@ export async function POST(
     activeCounts.forEach(c => { if (c.assigneeId) workloadMap[c.assigneeId] = c._count.assigneeId; });
 
     const candidates = members.map((m, index) => ({
-      index,
+      index, // LLM이 UUID를 그대로 못 옮겨적는 경우가 많아 인덱스로 참조시킨다
       userId: m.id,
       name: m.name,
       department: m.department,
@@ -63,7 +65,7 @@ export async function POST(
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
-      temperature: 0.0,
+      temperature: 0.0, // 배치를 재실행해도 같은 입력이면 같은 배정이 나오도록 결정성을 최대화
       messages: [
         {
           role: "system",
@@ -86,7 +88,7 @@ export async function POST(
           role: "user",
           content: JSON.stringify({
             tasks: tasks.map((t, taskIndex) => ({ taskIndex, title: t.title, description: t.description, difficulty: t.difficulty })),
-            candidates: candidates.map(({ userId, ...rest }) => rest),
+            candidates: candidates.map(({ userId, ...rest }) => rest), // UUID는 굳이 노출하지 않음 — index로만 참조
           }),
         },
       ],
@@ -138,6 +140,8 @@ export async function POST(
     });
     const cursorByAssignee: Record<string, Date> = {};
     existingSchedule.forEach(s => {
+      // 가장 늦은 종료일이 이미 오늘보다 과거라면 그 담당자는 지금 진행 중인 업무가 없다는
+      // 뜻이므로 커서를 세팅하지 않는다 — 아래에서 today가 기본값으로 쓰인다.
       if (s.assigneeId && s._max.wbsEnd && s._max.wbsEnd >= today) {
         cursorByAssignee[s.assigneeId] = nextBusinessDay(s._max.wbsEnd);
       }
@@ -147,16 +151,25 @@ export async function POST(
       const a = assignments.find(x => x.taskIndex === taskIndex);
       const candidate = a ? byCandidateIndex[a.candidateIndex] : undefined;
       if (!a || !candidate) {
+        // AI가 이 업무에 대해 추천을 못 준 경우(모델 응답 누락 등) — 배정 없이 그대로 반환하고
+        // PM이 업무분배 탭에서 수동으로 채워 넣도록 한다.
         return { taskId: task.id, title: task.title, difficulty: task.difficulty, difficultyReason: task.difficultyReason, estimatedHours: task.estimatedHours, suggestedAssigneeId: null, fitScore: null, techFit: null, workloadFit: null, experienceFit: null, suggestedWbsStart: null, suggestedWbsEnd: null };
       }
+      // 예상 소요시간을 8시간=1영업일 기준으로 올림해서 필요한 영업일수를 구한다(예: 10시간 -> 2일).
       const days = Math.max(1, Math.ceil((task.estimatedHours ?? 8) / 8));
+      // 이 담당자가 이번 배치에서 이미 앞선 업무를 받았다면 그 커서(다음 시작 가능일)부터,
+      // 처음 받는 것이라면 today(프로젝트 시작일 또는 오늘)부터 시작한다.
       const start = cursorByAssignee[candidate.userId] ?? today;
       const end = new Date(start);
+      // start 당일이 이미 1일째이므로, 남은 (days - 1)일만큼 하루씩 전진시키되
+      // 주말(토/일)은 세지 않고 건너뛰어 실제 영업일 기준으로 종료일을 맞춘다.
       for (let i = 1; i < days; i++) {
         let d = new Date(end);
         do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
         end.setTime(d.getTime());
       }
+      // 이 담당자의 다음 업무는 방금 끝난 업무의 다음 영업일부터 시작하도록 커서를 갱신 —
+      // 같은 배치 안에서 한 사람에게 여러 업무가 배정돼도 일정이 겹치지 않게 한다.
       cursorByAssignee[candidate.userId] = nextBusinessDay(end);
 
       return {

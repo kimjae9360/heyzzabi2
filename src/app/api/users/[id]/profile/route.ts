@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// 단일 사용자의 상세 프로필을 조회한다. password는 select에서 제외해 응답에 절대 포함하지 않는다.
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -23,6 +24,7 @@ export async function GET(
   }
 }
 
+// 사용자 프로필(인사정보 포함) 부분 수정. 요청에 실제로 담긴 필드만 골라서 업데이트한다.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -48,6 +50,8 @@ export async function PATCH(
       }
     }
 
+    // `필드 !== undefined` 스프레드 패턴: body에 아예 포함되지 않은 필드는 건드리지 않고,
+    // 명시적으로 보낸 필드만 data 객체에 넣어 부분 업데이트(partial update)를 구현한다.
     const updated = await prisma.user.update({
       where: { id },
       data: {
@@ -58,6 +62,7 @@ export async function PATCH(
         ...(department !== undefined && { department }),
         ...(role !== undefined && { role }),
         ...(name !== undefined && { name }),
+        // 빈 문자열이 오면 DB에는 unique 제약이 걸린 employeeNo를 ""로 저장하지 않고 null로 정규화한다.
         ...(employeeNo !== undefined && { employeeNo: employeeNo || null }),
         ...(position !== undefined && { position }),
         ...(jobTitle !== undefined && { jobTitle }),
