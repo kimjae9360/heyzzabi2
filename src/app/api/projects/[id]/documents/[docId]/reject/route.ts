@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const { docId } = await params;
-    const { type, reason } = await request.json();
+    const { type, reason } = await request.json() as { type: string; reason: string };
 
     if (type !== "proposal" && type !== "reqSpec") {
       return NextResponse.json({ error: "type은 proposal 또는 reqSpec이어야 합니다." }, { status: 400 });

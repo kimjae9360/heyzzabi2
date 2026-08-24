@@ -21,9 +21,15 @@ export async function POST(request: NextRequest) {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else if (name.endsWith(".pdf")) {
-      const pdfParse = (await import("pdf-parse")).default;
-      const result = await pdfParse(buffer);
-      text = result.text;
+      // pdf-parse v2부터 default export가 아니라 PDFParse 클래스로 바뀌었다
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        text = result.text;
+      } finally {
+        await parser.destroy();
+      }
     } else {
       return NextResponse.json({ error: "지원하지 않는 파일 형식입니다. (.txt, .md, .docx, .pdf만 지원)" }, { status: 400 });
     }
