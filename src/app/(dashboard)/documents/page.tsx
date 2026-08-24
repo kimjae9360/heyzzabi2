@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import {
   FileText, Plus, Bot, Loader2, Send, CheckCircle2, XCircle,
@@ -271,7 +272,14 @@ export default function DocumentsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center gap-3">
         <FolderKanban className="w-10 h-10 text-muted-foreground/30" />
-        <p className="text-muted-foreground">아직 프로젝트가 없습니다. 먼저 프로젝트를 생성해주세요.</p>
+        <p className="text-muted-foreground">
+          {isPM ? "아직 프로젝트가 없습니다. 먼저 프로젝트를 생성해주세요." : "아직 프로젝트가 없습니다. PM에게 프로젝트 생성을 요청해주세요."}
+        </p>
+        {isPM && (
+          <Link href="/project/new" className="inline-block mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors">
+            AI 마법사로 첫 프로젝트 만들기
+          </Link>
+        )}
       </div>
     );
   }
