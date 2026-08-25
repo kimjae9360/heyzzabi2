@@ -100,7 +100,7 @@ export default function DocumentsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "TASK_ASSIGNED" | "REJECTED">("all");
+  const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED">("all");
 
   // preferredId가 있으면 그 프로젝트를 바로 보여준다(예: 문서 작성 모달에서 새 프로젝트를 만든 직후) —
   // 없으면 기존처럼 가장 최근(첫 번째) 프로젝트를 기본으로 본다(단일 프로젝트 전제).
@@ -398,17 +398,15 @@ export default function DocumentsPage() {
     const stage = stageOf(doc);
     return stage === "taskAssignment" ? "APPROVED" : (doc[STATUS_FIELD[stage]] as any);
   };
-  // "배분완료"는 문서 상태(docStatusKey)와 별개 축이라 승인됨과 겹칠 수 있음(배분완료 문서는
-  // 항상 승인됨이기도 함) — 태그 필터처럼 겹치는 걸 허용하고, 승인됨 중 업무 배분까지 끝난
-  // 것만 더 좁혀 보고 싶을 때 쓰는 칩으로 승인됨 바로 다음에 둔다.
-  const isTaskAssigned = (doc: ProjectDocument) => docStatusKey(doc) === "APPROVED" && taskAssignMetaFor(doc) === TASK_ASSIGN_META.ASSIGNED;
+  // "배분완료"는 문서 상태(docStatusKey)와 별개 축이라 승인됨과 겹치는데(배분완료 문서는 항상
+  // 승인됨이기도 함), 승인됨 안에서 각 카드 배지(미생성/배분 필요/배분완료)로 이미 구분되니
+  // 필터 칩까지 따로 둘 필요는 없다는 판단으로 뺌(중복이라는 피드백) — 배지 자체는 유지.
   // PM 목록에는 DRAFT 문서 자체가 안 뜨니(위 isVisibleToViewer) "초안" 칩은 항상 0건이라 의미가 없다 — PM에게는 숨긴다.
   const DOC_FILTERS = [
     { key: "all" as const, label: "전체" },
     ...(isPM ? [] : [{ key: "DRAFT" as const, label: "초안" }]),
     { key: "PENDING_REVIEW" as const, label: "검토요청중" },
     { key: "APPROVED" as const, label: "승인됨" },
-    { key: "TASK_ASSIGNED" as const, label: "배분완료" },
     { key: "REJECTED" as const, label: "반려됨" },
   ];
   const docFilterCounts = {
@@ -416,10 +414,9 @@ export default function DocumentsPage() {
     DRAFT: documents.filter(d => docStatusKey(d) === "DRAFT").length,
     PENDING_REVIEW: documents.filter(d => docStatusKey(d) === "PENDING_REVIEW").length,
     APPROVED: documents.filter(d => docStatusKey(d) === "APPROVED").length,
-    TASK_ASSIGNED: documents.filter(isTaskAssigned).length,
     REJECTED: documents.filter(d => docStatusKey(d) === "REJECTED").length,
   };
-  const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docFilter === "TASK_ASSIGNED" ? isTaskAssigned(d) : docStatusKey(d) === docFilter);
+  const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docStatusKey(d) === docFilter);
 
   const PIPELINE_STEPS: PipelineTab[] = ["proposal", "reqSpec", "taskAssignment"];
   const stepDone = (doc: ProjectDocument | null, step: PipelineTab): boolean => {
