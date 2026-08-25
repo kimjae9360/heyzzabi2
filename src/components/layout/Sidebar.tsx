@@ -30,10 +30,14 @@ export function Sidebar() {
   const [mounted, setMounted] = useState(false);
   const { isOpen, toggle } = useSidebar();
   const { user, logout } = useAuth();
+  const isPM = user?.role === "PM";
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  // 직원관리는 팀원 개인정보(연락처/기술스택/재직상태 등)를 다루는 관리 기능이라 PM 전용으로
+  // 숨긴다 — 지금까지는 누구나 메뉴에서 보이고 들어갈 수 있었다(사용자가 실제로 보고 발견함).
+  const visibleNavItems = NAV_ITEMS.filter(item => item.href !== "/members" || isPM);
 
   return (
     <aside
@@ -66,7 +70,7 @@ export function Sidebar() {
       {/* Primary nav */}
       <div className="flex-1 overflow-y-auto py-6 scrollbar-hide">
         <nav className={cn("space-y-1", isOpen ? "px-3" : "px-2")}>
-          {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+          {visibleNavItems.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             return (
               <Link

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -34,8 +35,17 @@ const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString("
 type FilterStatus = "all" | EmployeeStatus;
 
 export default function MembersPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const isPM = user?.role === "PM";
+  const router = useRouter();
+
+  // 사이드바/모바일 메뉴에서 링크를 숨기는 것만으로는 URL을 직접 입력하면 그대로 들어와 볼 수
+  // 있었다 — 직원관리는 팀원 개인정보를 다루므로 PM이 아니면 대시보드로 돌려보낸다. auth 상태가
+  // 아직 localStorage에서 로드되기 전(authLoading)엔 판단을 미룬다 — 안 그러면 실제로는 PM인
+  // 사용자도 첫 렌더 순간엔 user가 null이라 잘못 튕겨나간다.
+  useEffect(() => {
+    if (!authLoading && !isPM) router.replace("/");
+  }, [authLoading, isPM, router]);
 
   const [members, setMembers] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,6 +259,16 @@ const handlePasswordReset = async (id: string, name: string) => {
   };
 
   const skills = (raw: string | null) => raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
+
+  // PM이 아니면 위 useEffect가 리다이렉트를 시작하지만, 그 한 렌더 사이에 팀원 개인정보가
+  // 잠깐이라도 그려지지 않도록 여기서도 막는다.
+  if (authLoading || !isPM) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">

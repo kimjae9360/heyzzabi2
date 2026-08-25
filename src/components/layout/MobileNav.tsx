@@ -11,11 +11,14 @@ import { useAuth } from "@/lib/auth";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const isPM = user?.role === "PM";
   // "메뉴" 버튼이 onClick 없이 방치돼 있어서 모바일에서 문서생성/업무관리/히스토리로
   // 갈 방법이 아예 없었다 — 사이드바와 같은 목록을 보여주는 드로어를 붙인다.
   const [menuOpen, setMenuOpen] = useState(false);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  // 직원관리는 PM 전용(Sidebar.tsx와 같은 이유) — 드로어 목록에서도 같은 기준으로 숨긴다.
+  const visibleNavItems = NAV_ITEMS.filter(item => item.href !== "/members" || isPM);
 
   return (
     <>
@@ -25,10 +28,12 @@ export function MobileNav() {
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-medium">대시보드</span>
           </Link>
-          <Link href="/members" className={cn("flex flex-col items-center gap-1", pathname === "/members" ? "text-primary" : "text-foreground/70")}>
-            <Users className="w-5 h-5" />
-            <span className="text-[10px] font-medium">멤버</span>
-          </Link>
+          {isPM && (
+            <Link href="/members" className={cn("flex flex-col items-center gap-1", pathname === "/members" ? "text-primary" : "text-foreground/70")}>
+              <Users className="w-5 h-5" />
+              <span className="text-[10px] font-medium">멤버</span>
+            </Link>
+          )}
           {/* 데스크톱 대시보드/승인함 페이지 제목과 같은 "승인" 용어로 통일 — 예전엔 여기만 "결재"라고 써서
               같은 화면을 다른 이름으로 부르는 바람에 헷갈렸다 */}
           <Link href="/approvals" className={cn("flex flex-col items-center gap-1", pathname === "/approvals" ? "text-primary" : "text-foreground/70")}>
@@ -53,7 +58,7 @@ export function MobileNav() {
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2 mb-2">
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+              {visibleNavItems.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}
