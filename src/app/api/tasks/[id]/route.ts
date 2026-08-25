@@ -23,6 +23,21 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "잘못된 status 값입니다." }, { status: 400 });
     }
 
+    // wbsStart/wbsEnd는 각각 독립적으로(부분 업데이트) 보내질 수 있어서, 요청에 실제로 온 값과
+    // DB에 이미 있던 값을 합쳐서 "저장 후 최종 상태"가 start > end가 되는지 검증한다.
+    // 이 검증이 없으면 시작일만 나중으로 옮기거나 종료일만 앞으로 당기는 식으로 둘 중 하나만
+    // 바꿔도 뒤죽박죽인 일정이 그대로 저장돼서, 업무분배 탭의 간트 차트가 날짜 범위 계산
+    // 중 배열 범위를 벗어나 화면이 죽는 사고로 이어졌다(실제로 발생 — 지연 업무 테스트 중
+    // wbsEnd만 과거로 옮기고 wbsStart는 그대로 둬서 생긴 오염 데이터가 원인이었음).
+    if (wbsStart !== undefined || wbsEnd !== undefined) {
+      const current = await prisma.task.findUnique({ where: { id }, select: { wbsStart: true, wbsEnd: true } });
+      const effectiveStart = wbsStart !== undefined ? (wbsStart ? new Date(wbsStart) : null) : current?.wbsStart ?? null;
+      const effectiveEnd = wbsEnd !== undefined ? (wbsEnd ? new Date(wbsEnd) : null) : current?.wbsEnd ?? null;
+      if (effectiveStart && effectiveEnd && effectiveStart > effectiveEnd) {
+        return NextResponse.json({ success: false, error: "시작일은 종료일보다 늦을 수 없습니다." }, { status: 400 });
+      }
+    }
+
     // 요청에 실제로 포함된 필드만 updateData에 반영 — undefined 필드는 건드리지 않아
     // "일부 값만 보낸" 부분 업데이트 요청이 기존 값을 실수로 지우지 않게 한다.
     const updateData: any = {};

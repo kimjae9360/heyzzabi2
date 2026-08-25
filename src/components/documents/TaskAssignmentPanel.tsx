@@ -465,9 +465,17 @@ function GanttChart({ items }: { items: GanttItem[] }) {
   const ends = items.map(i => toLocalMidnight(i.wbsEnd));
   const rangeStartMs = Math.min(...starts);
   const rangeEndMs = Math.max(...ends);
-  const dayCount = Math.round((rangeEndMs - rangeStartMs) / DAY_MS) + 1;
+  // rangeEndMs가 rangeStartMs보다 앞서면(예: 오염 데이터로 유일한 항목의 시작일이 종료일보다
+  // 늦은 경우) dayCount가 0 이하가 되어 Array.from({length: 음수})가 RangeError를 던진다 —
+  // 최소 1일짜리 그리드로 방어한다.
+  const dayCount = Math.max(1, Math.round((rangeEndMs - rangeStartMs) / DAY_MS) + 1);
   const days = Array.from({ length: dayCount }, (_, i) => new Date(rangeStartMs + i * DAY_MS));
-  const dayIndexOf = (iso: string) => Math.round((toLocalMidnight(iso) - rangeStartMs) / DAY_MS);
+  // 정상적인 데이터라면 항상 [0, dayCount-1] 안에 들어와야 하지만, 시작일이 종료일보다
+  // 늦게 저장된 오염 데이터(서버에서도 이제 막지만 과거 데이터가 남아있을 수 있음)나 서머타임
+  // 등으로 하루가 정확히 24시간이 아닌 경우 반올림이 범위를 벗어날 수 있다 — days[s]/days[e]가
+  // undefined가 돼 화면이 죽었던 적이 실제로 있어서(fmtDate(undefined) 크래시), 항상 유효한
+  // 인덱스로 clamp한다.
+  const dayIndexOf = (iso: string) => Math.min(dayCount - 1, Math.max(0, Math.round((toLocalMidnight(iso) - rangeStartMs) / DAY_MS)));
   const fmtDate = (d: Date) => d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
   const fmtWeekday = (d: Date) => d.toLocaleDateString("ko-KR", { weekday: "short" });
   const todayIndex = Math.round((toLocalMidnight(new Date().toISOString()) - rangeStartMs) / DAY_MS);
