@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyAllPMs } from "@/lib/notify";
 
 // tasks/route.ts(일괄 수정)의 화이트리스트와 동일해야 한다 — 여기 없으면 "TODO" 같은 값이
 // 그대로 저장돼서 칸반보드의 어느 컬럼에도 안 걸리는 유령 업무가 생긴다(QA에서 발견).
@@ -48,6 +49,10 @@ export async function PATCH(
       where: { id },
       data: updateData,
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await notifyAllPMs(`"${updated.title}" 업무 배분 승인 요청이 도착했습니다.`, { type: "info", link: "/approvals" });
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

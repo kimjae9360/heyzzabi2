@@ -99,7 +99,9 @@ export default function OverviewView() {
         <StatCard
           href="/approvals"
           icon={<Clock className="w-5 h-5 text-orange-500" />}
-          label={isPM ? "승인 대기" : "검토 요청중"}
+          // PM/MEMBER 둘 다 같은 값(pendingApproval)을 보므로 라벨도 통일한다 — 예전엔 MEMBER 쪽만
+          // "검토 요청중"이라 문서 검토 상태(PENDING_REVIEW)와 헷갈렸음(둘은 서로 다른 개념).
+          label="배분승인대기"
           value={summary.pendingApproval || 0}
         />
         <StatCard

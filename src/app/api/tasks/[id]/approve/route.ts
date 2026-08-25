@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notify";
 
 export async function POST(
   request: Request,
@@ -24,6 +25,10 @@ export async function POST(
         project: { select: { name: true } },
       }
     });
+
+    if (task.assigneeId) {
+      await notifyUser(task.assigneeId, `"${task.title}" 업무 배분이 승인되었습니다.`, { type: "success", link: "/tasks" });
+    }
 
     return NextResponse.json({ success: true, data: task });
   } catch (error: any) {

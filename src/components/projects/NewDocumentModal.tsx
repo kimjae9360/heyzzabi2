@@ -104,10 +104,11 @@ export function NewDocumentModal({
   }, [defaultProjectId]);
 
   // 참석자 드롭박스 후보 — DB에 등록된 사람 이름. 목록에 없는 사람은 TagAutocomplete에서 직접 입력해 추가할 수 있다.
+  // 온보딩 전이라 이름이 비어있는 계정을 걸러내지 않으면 라벨 없는 빈 체크박스가 뜬다(다른 화면들과 동일한 필터).
   useEffect(() => {
     fetch("/api/users")
       .then(res => res.json())
-      .then(json => setMemberNames((json.data ?? []).map((u: any) => u.name)))
+      .then(json => setMemberNames((json.data ?? []).filter((u: any) => u.name?.trim()).map((u: any) => u.name)))
       .catch(() => {});
   }, []);
 

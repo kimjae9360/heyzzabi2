@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyAllPMs } from "@/lib/notify";
 
 // approve/reject와 동일한 패턴의 type→컬럼명 매핑
 const FIELD = { proposal: "proposalStatus", reqSpec: "reqSpecStatus" } as const;
 const CONTENT_FIELD = { proposal: "proposalContent", reqSpec: "reqSpecContent" } as const;
+const TYPE_LABEL = { proposal: "기획서", reqSpec: "요구사항정의서" } as const;
 
 // AI가 생성한 초안(DRAFT)을 PM 검토 대기 상태(PENDING_REVIEW)로 전환하는 엔드포인트.
 // autoApprove 없이 generate API를 호출한 경우 이 API를 거쳐야 승인/반려 흐름을 탈 수 있다.
@@ -33,6 +35,8 @@ export async function POST(
       where: { id: docId },
       data: { [FIELD[type]]: "PENDING_REVIEW" },
     });
+
+    await notifyAllPMs(`"${doc.title}" ${TYPE_LABEL[type]} 검토 요청이 도착했습니다.`, { type: "info", link: "/documents" });
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

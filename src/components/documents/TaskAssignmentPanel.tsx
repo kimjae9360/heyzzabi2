@@ -312,7 +312,7 @@ export function TaskAssignmentPanel({
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 mx-auto"
             >
               {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-              {tasks.length === 0 ? "업무분배 시작" : "나머지 배분 추천받기"}
+              {tasks.length === 0 ? "업무 배분 시작" : "나머지 배분 추천받기"}
               <AgentBadge agent="taskAssign" />
             </button>
           </div>

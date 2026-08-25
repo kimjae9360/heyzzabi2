@@ -9,7 +9,7 @@ export type AgentKind = "proposal" | "reqSpec" | "taskAssign";
 const AGENT_META: Record<AgentKind, { label: string; className: string }> = {
   proposal: { label: "기획서", className: "bg-blue-500 text-white" },
   reqSpec: { label: "요구사항정의서", className: "bg-violet-500 text-white" },
-  taskAssign: { label: "업무분배", className: "bg-teal-500 text-white" },
+  taskAssign: { label: "업무 배분", className: "bg-teal-500 text-white" },
 };
 
 export function AgentBadge({ agent = "proposal" }: { agent?: AgentKind }) {

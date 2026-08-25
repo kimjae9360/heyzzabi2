@@ -1030,7 +1030,7 @@ function DocDetail({
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
           >
             {busy === busyKey("tasks") ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-            업무분배 실행
+            업무 배분 실행
             <AgentBadge agent="taskAssign" />
           </button>
         )}

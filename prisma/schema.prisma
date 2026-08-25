@@ -30,6 +30,20 @@ model User {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   assignedTasks        Task[]    @relation("TaskAssignee")
+  notifications        Notification[]
+}
+
+// 인앱 알림 — 배분승인대기 발생/승인/반려, 문서 검토요청 등 당사자가 화면을 직접
+// 열어보기 전엔 알 방법이 없던 이벤트를 알려준다. 헤더(대시보드 상단 우측)의 종 아이콘이 이걸 읽는다.
+model Notification {
+  id        String   @id @default(uuid())
+  message   String
+  type      String   @default("info") // info | success | warning | error
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Project {

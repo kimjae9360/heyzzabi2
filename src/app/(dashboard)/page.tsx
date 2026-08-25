@@ -6,6 +6,7 @@ import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, TrendingUp } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 export default function DashboardContainer() {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function DashboardContainer() {
         <div>
           <h1 className="text-3xl font-bold">대시보드</h1>
         </div>
+        <NotificationBell />
       </div>
 
       {/* Tabs — 성과 통계(팀 전체 KPI)는 PM 전용 */}

@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notify";
 
 export async function POST(
   request: Request,
@@ -14,6 +15,10 @@ export async function POST(
     if (!reason || !reason.trim()) {
       return NextResponse.json({ success: false, error: "반려 사유는 필수입니다." }, { status: 400 });
     }
+
+    // 알림은 반려된 "그 담당자"에게 가야 하는데, update가 assigneeId를 지워버리므로
+    // 지우기 전에 미리 알아둔다.
+    const before = await prisma.task.findUnique({ where: { id }, select: { assigneeId: true, title: true } });
 
     // 배분 반려: 제안된 담당자 배정을 거부 — 담당자 배정을 해제하고 대기 풀로 되돌림(FR-05-019)
     // approve와 대칭 구조: PENDING_APPROVAL -> IN_PROGRESS가 아니라 BACKLOG로 되돌아가며,
@@ -31,6 +36,10 @@ export async function POST(
         project: { select: { name: true } },
       }
     });
+
+    if (before?.assigneeId) {
+      await notifyUser(before.assigneeId, `"${before.title}" 업무 배분이 반려되었습니다: ${reason}`, { type: "warning", link: "/tasks" });
+    }
 
     return NextResponse.json({ success: true, data: task });
   } catch (error: any) {
