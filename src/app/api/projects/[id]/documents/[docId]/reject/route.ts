@@ -24,6 +24,17 @@ export async function POST(
       return NextResponse.json({ error: "반려 사유는 필수입니다." }, { status: 400 });
     }
 
+    // approve route와 동일한 이유로 현재 상태를 검증한다 — 가드가 없으면 이미 APPROVED된
+    // 요구사항정의서(이미 업무가 추출됐을 수 있음)를 REJECTED로 되돌려 삭제 가능하게 만들 수
+    // 있고, 그러면 sourceDocumentId가 가리키는 문서가 사라져 업무가 고아화된다.
+    const current = await prisma.projectDocument.findUnique({ where: { id: docId } });
+    if (!current) {
+      return NextResponse.json({ error: "문서를 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (current[FIELD[type]] !== "PENDING_REVIEW") {
+      return NextResponse.json({ error: "검토 요청 중인 문서만 반려할 수 있습니다." }, { status: 400 });
+    }
+
     const updated = await prisma.projectDocument.update({
       where: { id: docId },
       data: { [FIELD[type]]: "REJECTED", [REASON_FIELD[type]]: reason },

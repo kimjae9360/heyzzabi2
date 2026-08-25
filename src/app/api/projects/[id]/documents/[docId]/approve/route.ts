@@ -24,6 +24,17 @@ export async function POST(
       return NextResponse.json({ error: "type은 proposal 또는 reqSpec이어야 합니다." }, { status: 400 });
     }
 
+    // PENDING_REVIEW가 아닌 문서(예: 이미 APPROVED)를 다시 승인 처리할 수 있게 두면
+    // 이미 업무가 추출된 요구사항정의서를 반려→삭제해 업무가 고아화되는 경로가 열린다.
+    // reject route와 동일한 이유로 현재 상태를 서버에서도 검증한다(프론트 가드만으로는 우회 가능).
+    const current = await prisma.projectDocument.findUnique({ where: { id: docId } });
+    if (!current) {
+      return NextResponse.json({ error: "문서를 찾을 수 없습니다." }, { status: 404 });
+    }
+    if (current[FIELD[type]] !== "PENDING_REVIEW") {
+      return NextResponse.json({ error: "검토 요청 중인 문서만 승인할 수 있습니다." }, { status: 400 });
+    }
+
     // 승인 시 이전에 반려됐던 사유는 더 이상 의미가 없으므로 함께 null로 초기화
     const updated = await prisma.projectDocument.update({
       where: { id: docId },

@@ -762,6 +762,13 @@ function DocDetail({
     setEditMode(false);
   };
 
+  // parseProposalDoc/parseReqSpecDoc은 형식이 손상된 문서(레거시 포맷 등)에서 null을 반환할 수
+  // 있다 — 과거 이 경우를 `!`로 무시하다가 화면이 죽은 적이 있어(PROJECT_STATUS.md 참고),
+  // 여기서 한 번만 계산해 null이면 아래에서 안전한 폴백 문구를 보여준다.
+  const parsedContent = editMode ? editDraft : (type === "proposal" ? parseProposalDoc(content) : parseReqSpecDoc(content));
+  // reqSpec 탭의 "기획서 원본" 참고 박스에서 쓴다 — 위와 별개로 항상 doc.proposalContent 기준.
+  const parsedProposalRef = parseProposalDoc(doc.proposalContent);
+
   // 잠긴 상태에서도 내용 자체는 볼 수 있어야 하므로, 수정은 막되 펼쳐서 전체를 확인하는 건 허용한다.
   // 기본은 접어서(h-20) 자리를 적게 차지하다가, 필요할 때만 펼친다(h-64) — 수정 가능 여부와는 별개.
   const [rawLockedExpanded, setRawLockedExpanded] = useState(false);
@@ -819,8 +826,8 @@ function DocDetail({
           </button>
           {proposalRefOpen && (
             <div className="mt-2 border border-white/10 rounded-xl overflow-hidden max-h-64 overflow-y-auto bg-black/5 dark:bg-black/20">
-              {parseProposalDoc(doc.proposalContent) ? (
-                <ProposalTemplate doc={parseProposalDoc(doc.proposalContent)!} title={doc.title} dateLabel={dateLabel} />
+              {parsedProposalRef ? (
+                <ProposalTemplate doc={parsedProposalRef} title={doc.title} dateLabel={dateLabel} />
               ) : (
                 <div className="p-6 text-center text-muted-foreground text-xs">기획서 내용이 없습니다.</div>
               )}
@@ -881,21 +888,25 @@ function DocDetail({
 
       <div className="border border-white/10 rounded-xl overflow-hidden">
         <div className="max-h-[520px] overflow-y-auto bg-black/5 dark:bg-black/20">
-          {content ? (
+          {content && parsedContent ? (
             <div id="print-area">
               {type === "proposal" ? (
                 <ProposalTemplate
-                  doc={editMode ? editDraft : parseProposalDoc(content)!}
+                  doc={parsedContent}
                   title={doc.title} dateLabel={dateLabel}
                   editable={editMode} onChange={setEditDraft}
                 />
               ) : (
                 <ReqSpecTemplate
-                  doc={editMode ? editDraft : parseReqSpecDoc(content)!}
+                  doc={parsedContent}
                   title={doc.title} dateLabel={dateLabel}
                   editable={editMode} onChange={setEditDraft}
                 />
               )}
+            </div>
+          ) : content ? (
+            <div className="p-10 text-center text-muted-foreground text-sm">
+              문서 내용을 표시할 수 없습니다. 형식이 손상되었을 수 있습니다.
             </div>
           ) : (
             <div className="p-10 text-center text-muted-foreground text-sm">
