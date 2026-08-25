@@ -280,7 +280,7 @@ const handlePasswordReset = async (id: string, name: string) => {
             placeholder="이름, 이메일, 부서, 사번으로 검색..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 lg:w-80"
+            className="w-full pl-10 pr-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 lg:w-80"
           />
         </div>
         <div className="flex items-center gap-1 p-1 bg-black/5 dark:bg-white/5 rounded-xl w-max">
@@ -312,7 +312,7 @@ const handlePasswordReset = async (id: string, name: string) => {
       </div>
 
       {/* Table */}
-      <div className="glass rounded-xl border border-white/5 overflow-hidden">
+      <div className="glass rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-black/10 dark:bg-white/5 text-muted-foreground">
@@ -327,14 +327,14 @@ const handlePasswordReset = async (id: string, name: string) => {
                 {isPM && <th className="px-6 py-4 font-semibold text-center">설정</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr><td colSpan={8} className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="py-16 text-center text-muted-foreground">검색 결과가 없습니다.</td></tr>
               ) : (
                 filtered.map(member => (
-                  <tr key={member.id} className="hover:bg-white/5 transition-colors">
+                  <tr key={member.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                     {/* Name + Email */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -386,7 +386,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                           onChange={e => handleRoleChange(member.id, e.target.value)}
                           className={cn(
                             "appearance-none bg-transparent border rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40",
-                            member.role === "PM" ? "text-emerald-400 border-emerald-400/30" : "text-muted-foreground border-white/10"
+                            member.role === "PM" ? "text-emerald-400 border-emerald-400/30" : "text-muted-foreground border-border"
                           )}
                         >
                           <option value="PM">PM</option>
@@ -396,7 +396,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                       ) : (
                         <span className={cn(
                           "px-2.5 py-1 rounded-full text-xs font-semibold",
-                          member.role === "PM" ? "bg-emerald-500/10 text-emerald-400" : "bg-white/10 text-muted-foreground"
+                          member.role === "PM" ? "bg-emerald-500/10 text-emerald-400" : "bg-black/10 dark:bg-white/10 text-muted-foreground"
                         )}>
                           {member.role === "PM" ? "PM" : "일반 멤버"}
                         </span>
@@ -435,7 +435,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                       ) : (
                         <span className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
-                          (activeTaskCounts[member.id] ?? 0) > 0 ? "bg-primary/10 text-primary" : "bg-white/5 text-muted-foreground"
+                          (activeTaskCounts[member.id] ?? 0) > 0 ? "bg-primary/10 text-primary" : "bg-black/5 dark:bg-white/5 text-muted-foreground"
                         )}>
                           <Briefcase className="w-3 h-3" /> {activeTaskCounts[member.id] ?? 0}건
                         </span>
@@ -449,7 +449,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                           <button
                             onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
                             disabled={processingId === member.id}
-                            className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
                           >
                             {processingId === member.id
                               ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -457,10 +457,10 @@ const handlePasswordReset = async (id: string, name: string) => {
                           </button>
 
                           {openMenuId === member.id && (
-                            <div className="absolute right-0 top-8 z-50 w-48 glass border border-white/10 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                            <div className="absolute right-0 top-8 z-50 w-48 glass border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                               <button
                                 onClick={() => handlePasswordReset(member.id, member.name)}
-                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-white/5 transition-colors text-left"
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left"
                               >
                                 <KeyRound className="w-4 h-4 text-orange-400" />
                                 비밀번호 초기화 (1111)
@@ -477,12 +477,12 @@ const handlePasswordReset = async (id: string, name: string) => {
                                   });
                                   setOpenMenuId(null);
                                 }}
-                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-white/5 transition-colors text-left"
+                                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left"
                               >
                                 <Settings className="w-4 h-4 text-blue-400" />
                                 정보 수정
                               </button>
-                              <div className="border-t border-white/5" />
+                              <div className="border-t border-border" />
                               <button
                                 onClick={() => { setDeleteTarget({ id: member.id, name: member.name }); setOpenMenuId(null); }}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-red-500/10 transition-colors text-left text-red-400"
@@ -510,7 +510,7 @@ const handlePasswordReset = async (id: string, name: string) => {
           { role: "일반 멤버", color: "border-t-primary", textColor: "text-primary", perms: ["할 일 생성 및 수정", "칸반 보드 상태 변경", "검토 요청", "본인 프로필 수정"] },
           { role: "게스트", color: "border-t-muted-foreground", textColor: "text-muted-foreground", perms: ["읽기 전용 열람", "코멘트 작성", "수정/생성 불가"] },
         ].map(item => (
-          <div key={item.role} className={cn("glass p-5 rounded-xl border border-white/5 border-t-4", item.color)}>
+          <div key={item.role} className={cn("glass p-5 rounded-xl border border-border border-t-4", item.color)}>
             <h4 className={cn("font-bold mb-3", item.textColor)}>{item.role}</h4>
             <ul className="space-y-1.5">
               {item.perms.map((p, i) => (
@@ -526,12 +526,12 @@ const handlePasswordReset = async (id: string, name: string) => {
       {/* Add Employee Modal */}
       {addModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-primary" /> 직원 추가
               </h3>
-              <button onClick={() => setAddModal(false)} className="p-1.5 rounded-lg hover:bg-white/5">
+              <button onClick={() => setAddModal(false)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -539,7 +539,7 @@ const handlePasswordReset = async (id: string, name: string) => {
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-semibold mb-1.5 block">아이디 <span className="text-red-400">*</span></label>
-                <div className="flex items-center border border-white/10 rounded-xl overflow-hidden bg-black/5 dark:bg-white/5">
+                <div className="flex items-center border border-border rounded-xl overflow-hidden bg-black/5 dark:bg-white/5">
                   <input
                     type="text"
                     placeholder="아이디 입력"
@@ -560,7 +560,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                   placeholder="홍길동"
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
 
@@ -570,7 +570,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                   <select
                     value={newDept}
                     onChange={e => setNewDept(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                   >
                     <option value="">선택 안 함</option>
                     {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -581,7 +581,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                   <select
                     value={newPosition}
                     onChange={e => setNewPosition(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                   >
                     <option value="">선택 안 함</option>
                     {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -595,7 +595,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                   <select
                     value={newJobTitle}
                     onChange={e => setNewJobTitle(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                    className="w-full px-3 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                   >
                     <option value="">선택 안 함</option>
                     {JOB_TITLES.map(j => <option key={j} value={j}>{j}</option>)}
@@ -608,7 +608,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     placeholder="예: 2026001"
                     value={newEmployeeNo}
                     onChange={e => setNewEmployeeNo(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
               </div>
@@ -619,7 +619,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                   type="date"
                   value={newHireDate}
                   onChange={e => setNewHireDate(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
 
@@ -629,7 +629,7 @@ const handlePasswordReset = async (id: string, name: string) => {
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setAddModal(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setAddModal(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleAddEmployee}
                 disabled={!newUsername.trim() || adding}
@@ -646,7 +646,7 @@ const handlePasswordReset = async (id: string, name: string) => {
       {/* Delete Confirm Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
             <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-red-400">
               <Trash2 className="w-5 h-5" /> 계정 삭제
             </h3>
@@ -655,7 +655,7 @@ const handlePasswordReset = async (id: string, name: string) => {
               이 작업은 되돌릴 수 없습니다.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleDelete}
                 disabled={processingId !== null}
@@ -673,12 +673,12 @@ const handlePasswordReset = async (id: string, name: string) => {
       {/* Edit Modal — 필드가 많아 세로로 나열하면 모달이 지나치게 길어지므로 좌(기본정보)/우(스택·이력) 2단 레이아웃으로 분리 */}
       {editModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary" /> 정보 수정
               </h3>
-              <button onClick={() => setEditModal(null)} className="p-1.5 rounded-lg hover:bg-white/5">
+              <button onClick={() => setEditModal(null)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -692,7 +692,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     type="text"
                     value={editModal.name}
                     onChange={e => setEditModal({ ...editModal, name: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -701,7 +701,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     <select
                       value={editModal.department}
                       onChange={e => setEditModal({ ...editModal, department: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                     >
                       <option value="">선택 안 함</option>
                       {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
@@ -712,7 +712,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     <select
                       value={editModal.role}
                       onChange={e => setEditModal({ ...editModal, role: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                     >
                       <option value="EMPLOYEE">일반 멤버</option>
                       <option value="PM">PM</option>
@@ -725,7 +725,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     <select
                       value={editModal.position}
                       onChange={e => setEditModal({ ...editModal, position: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                     >
                       <option value="">선택 안 함</option>
                       {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -736,7 +736,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     <select
                       value={editModal.jobTitle}
                       onChange={e => setEditModal({ ...editModal, jobTitle: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                     >
                       <option value="">선택 안 함</option>
                       {JOB_TITLES.map(j => <option key={j} value={j}>{j}</option>)}
@@ -750,7 +750,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                       type="text"
                       value={editModal.employeeNo}
                       onChange={e => setEditModal({ ...editModal, employeeNo: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                   <div>
@@ -759,7 +759,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                       type="date"
                       value={editModal.hireDate}
                       onChange={e => setEditModal({ ...editModal, hireDate: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                 </div>
@@ -769,7 +769,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                     <select
                       value={editModal.status}
                       onChange={e => setEditModal({ ...editModal, status: e.target.value as EmployeeStatus })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                     >
                       {Object.keys(STATUS_META).map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
                     </select>
@@ -780,7 +780,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                       type="date"
                       value={editModal.resignDate}
                       onChange={e => setEditModal({ ...editModal, resignDate: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                 </div>
@@ -825,14 +825,14 @@ const handlePasswordReset = async (id: string, name: string) => {
                     value={editModal.phone}
                     onChange={e => setEditModal({ ...editModal, phone: e.target.value })}
                     placeholder="010-0000-0000"
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
               </div>
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setEditModal(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleEditEmployee}
                 disabled={!editModal.name.trim() || editing}

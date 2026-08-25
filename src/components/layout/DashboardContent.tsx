@@ -28,7 +28,7 @@ export function DashboardContent({ children }: { children: React.ReactNode }) {
             공용 바가 필요하다(사용자 요청 — 처음엔 사이드바에 뒀다가 위치를 옮김).
             높이(h-16)를 사이드바 헤더(Sidebar.tsx의 h-16)와 맞춰서, 페이지 제목이 사이드바
             접기 버튼과 같은 줄에 정확히 정렬되게 한다(사용자 요청). */}
-        <div className="h-16 shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-white/5">
+        <div className="h-16 shrink-0 flex items-center justify-between px-4 md:px-8 border-b border-border">
           {currentNavItem ? (
             <h1 className="flex items-center gap-2 text-lg font-bold text-foreground tracking-tight">
               <currentNavItem.icon className="w-5 h-5 text-primary" />

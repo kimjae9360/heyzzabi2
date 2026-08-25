@@ -130,7 +130,7 @@ export default function ApprovalsPage() {
           <p className="text-muted-foreground text-sm">불러오는 중...</p>
         </div>
       ) : tasks.length === 0 ? (
-        <div className="glass rounded-2xl border border-white/5 p-16 text-center">
+        <div className="glass rounded-2xl border border-border p-16 text-center">
           <CheckCircle2 className="w-14 h-14 text-emerald-400 mx-auto mb-4" />
           <h3 className="text-xl font-bold mb-2">
             {isPM ? "모든 요청을 처리했습니다! 🎉" : "아직 배분 승인을 요청한 업무가 없습니다."}
@@ -172,7 +172,7 @@ export default function ApprovalsPage() {
 
                   {/* Progress */}
                   <div className="flex items-center gap-2 mt-3">
-                    <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden max-w-[160px]">
+                    <div className="flex-1 h-1.5 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden max-w-[160px]">
                       <div
                         className="h-full bg-orange-400 rounded-full"
                         style={{ width: `${task.progress}%` }}
@@ -224,7 +224,7 @@ export default function ApprovalsPage() {
       {/* Reject Modal */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
             <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
               <RotateCcw className="w-5 h-5 text-red-400" />
               반려 사유 입력
@@ -236,7 +236,7 @@ export default function ApprovalsPage() {
             <div className="relative mb-4">
               <MessageSquare className="w-4 h-4 absolute left-3 top-3.5 text-muted-foreground" />
               <textarea
-                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-28"
+                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-28"
                 placeholder="예: 요구사항 명세서 보완이 필요합니다. 3번 항목 재검토 요청."
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
@@ -245,7 +245,7 @@ export default function ApprovalsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => { setRejectModal(null); setRejectReason(""); }}
-                className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5 transition-colors"
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 취소
               </button>

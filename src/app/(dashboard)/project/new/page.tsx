@@ -52,7 +52,7 @@ export default function NewProjectPage() {
         </p>
       </div>
 
-      <div className="glass rounded-2xl border border-white/10 p-6 space-y-4">
+      <div className="glass rounded-2xl border border-border p-6 space-y-4">
         {error && (
           <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">{error}</div>
         )}
@@ -63,7 +63,7 @@ export default function NewProjectPage() {
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="예: 사내 인트라넷 모바일 앱 개발"
-            className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
         </div>
         <div>
@@ -73,7 +73,7 @@ export default function NewProjectPage() {
             onChange={e => setDescription(e.target.value)}
             rows={3}
             placeholder="이 프로젝트가 무엇을 위한 것인지 한두 줄로 적어주세요."
-            className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+            className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
           />
         </div>
         <button

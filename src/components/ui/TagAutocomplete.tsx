@@ -56,7 +56,7 @@ export default function TagAutocomplete({ value, onChange, suggestions, placehol
 
   return (
     <div ref={wrapRef} className="relative">
-      <div className="flex items-start gap-1.5 w-full border border-white/10 rounded-xl p-2 bg-black/5 dark:bg-white/5 focus-within:bg-background transition-all focus-within:ring-2 focus-within:ring-primary/40">
+      <div className="flex items-start gap-1.5 w-full border border-border rounded-xl p-2 bg-black/5 dark:bg-white/5 focus-within:bg-background transition-all focus-within:ring-2 focus-within:ring-primary/40">
         <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
           {value.map(tag => (
             <span key={tag} className="flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-primary/10 whitespace-nowrap">
@@ -87,13 +87,13 @@ export default function TagAutocomplete({ value, onChange, suggestions, placehol
       </div>
 
       {showDropdown && filtered.length > 0 && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background border border-white/10 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
           {filtered.map(s => (
             <button
               key={s}
               type="button"
               onClick={() => addTag(s, true)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 transition-colors"
+              className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             >
               {s}
             </button>
@@ -102,9 +102,9 @@ export default function TagAutocomplete({ value, onChange, suggestions, placehol
       )}
 
       {showBrowse && (
-        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background border border-white/10 rounded-xl shadow-xl p-2 max-h-56 overflow-y-auto grid grid-cols-2 gap-x-2">
+        <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-background border border-border rounded-xl shadow-xl p-2 max-h-56 overflow-y-auto grid grid-cols-2 gap-x-2">
           {suggestions.map(s => (
-            <label key={s} className="flex items-center gap-1.5 px-1.5 py-1.5 rounded hover:bg-white/5 cursor-pointer text-xs">
+            <label key={s} className="flex items-center gap-1.5 px-1.5 py-1.5 rounded hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-xs">
               <input
                 type="checkbox"
                 checked={value.some(v => v.toLowerCase() === s.toLowerCase())}

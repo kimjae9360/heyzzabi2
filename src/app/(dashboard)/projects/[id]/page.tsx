@@ -214,7 +214,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </div>
           {project.description && <p className="text-muted-foreground">{project.description}</p>}
         </div>
-        <div className="flex items-center gap-5 bg-black/5 dark:bg-white/5 px-5 py-3 rounded-2xl border border-white/10 shadow-sm shrink-0 whitespace-nowrap">
+        <div className="flex items-center gap-5 bg-black/5 dark:bg-white/5 px-5 py-3 rounded-2xl border border-border shadow-sm shrink-0 whitespace-nowrap">
           <div className="flex flex-col">
             <span className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">진행률</span>
             <div className="flex items-center gap-3">
@@ -284,7 +284,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         )}
 
         {activeTab === "WBS" && (
-          <div className="glass rounded-xl border border-white/10 overflow-hidden">
+          <div className="glass rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-black/10 dark:bg-white/5 text-muted-foreground text-xs uppercase tracking-wider">
@@ -297,12 +297,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     <th className="px-4 py-3 font-semibold">진행률</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-border">
                   {filteredTasks.map(task => {
                     const statusMeta = STATUSES.find(s => s.id === task.status);
                     const SIcon = statusMeta?.icon || Clock;
                     return (
-                      <tr key={task.id} className="hover:bg-white/5 transition-colors group">
+                      <tr key={task.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
                         <td className="px-4 py-3 font-medium min-w-[200px]">{task.title}</td>
                         <td className="px-4 py-3">
                           {task.status === "PENDING_APPROVAL" || !canEditTask(task) ? (
@@ -329,7 +329,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                             <select
                               value={task.assigneeId || ""}
                               onChange={e => handleTaskUpdate(task.id, { assigneeId: e.target.value || null })}
-                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none"
+                              className="bg-transparent border border-transparent hover:border-black/10 dark:hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none"
                             >
                               <option value="">담당자 없음</option>
                               {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -347,7 +347,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               type="date"
                               value={task.wbsStart ? new Date(task.wbsStart).toISOString().split('T')[0] : ""}
                               onChange={e => handleTaskUpdate(task.id, { wbsStart: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
+                              className="bg-transparent border border-transparent hover:border-black/10 dark:hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
                             />
                           ) : (
                             <span title="일정 조율은 PM만 할 수 있습니다" className="inline-flex items-center gap-1 px-1 py-1 text-xs text-muted-foreground">
@@ -361,7 +361,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                               type="date"
                               value={task.wbsEnd ? new Date(task.wbsEnd).toISOString().split('T')[0] : ""}
                               onChange={e => handleTaskUpdate(task.id, { wbsEnd: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                              className="bg-transparent border border-transparent hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
+                              className="bg-transparent border border-transparent hover:border-black/10 dark:hover:border-white/10 rounded px-1 py-1 text-xs focus:outline-none text-muted-foreground"
                             />
                           ) : (
                             <span title="일정 조율은 PM만 할 수 있습니다" className="inline-flex items-center gap-1 px-1 py-1 text-xs text-muted-foreground">
@@ -406,7 +406,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         )}
 
         {activeTab === "SETTINGS" && (
-          <div className="glass p-8 rounded-xl border border-white/10">
+          <div className="glass p-8 rounded-xl border border-border">
             <h2 className="text-xl font-bold mb-6">프로젝트 설정</h2>
             <div className="max-w-md space-y-4">
               <div>
@@ -417,7 +417,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   onChange={e => setSettingsName(e.target.value)}
                   readOnly={!isPM}
                   className={cn(
-                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm",
+                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm",
                     isPM && "focus:outline-none focus:ring-2 focus:ring-primary/40"
                   )}
                 />
@@ -430,7 +430,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   readOnly={!isPM}
                   rows={3}
                   className={cn(
-                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm",
+                    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-sm",
                     isPM && "focus:outline-none focus:ring-2 focus:ring-primary/40"
                   )}
                 />
@@ -455,7 +455,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {/* Add Task Modal */}
       {addModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
             <h3 className="text-xl font-bold mb-5 flex items-center gap-2">
               <Plus className="w-5 h-5 text-primary" /> 새 업무 추가
             </h3>
@@ -468,7 +468,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   placeholder="UI 디자인 시안 작성"
                   value={newTask.title}
                   onChange={e => setNewTask({...newTask, title: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div>
@@ -477,7 +477,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   placeholder="세부 내용..."
                   value={newTask.description}
                   onChange={e => setNewTask({...newTask, description: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   rows={3}
                 />
               </div>
@@ -488,7 +488,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     type="date"
                     value={newTask.wbsStart}
                     onChange={e => setNewTask({...newTask, wbsStart: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
                 <div>
@@ -497,7 +497,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                     type="date"
                     value={newTask.wbsEnd}
                     onChange={e => setNewTask({...newTask, wbsEnd: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </div>
               </div>
@@ -506,7 +506,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 <select
                   value={newTask.assigneeId}
                   onChange={e => setNewTask({...newTask, assigneeId: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
                 >
                   <option value="">할당하지 않음</option>
                   {users.map(u => (
@@ -517,7 +517,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             </div>
 
             <div className="flex gap-3 mt-8">
-              <button onClick={() => setAddModal(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5 transition-colors">취소</button>
+              <button onClick={() => setAddModal(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors">취소</button>
               <button
                 onClick={handleAddTask}
                 disabled={!newTask.title.trim() || adding}

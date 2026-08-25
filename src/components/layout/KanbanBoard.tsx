@@ -131,7 +131,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
         </Link>
       )}
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-white/5 pt-3 mt-3">
+      <div className="flex items-center justify-between text-xs text-muted-foreground border-t border-border pt-3 mt-3">
         <AssigneeDropdown task={task} members={members} onAssign={onAssign} readOnly={!isPM} />
         {task.progress > 0 && <span className="font-medium text-primary">{task.progress}%</span>}
       </div>
@@ -146,7 +146,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
       )}
 
       {showApprovalActions && (
-        <div className="flex items-center gap-2 border-t border-white/5 pt-3 mt-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-t border-border pt-3 mt-3" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => onReject(task)}
             disabled={processing === task.id}
@@ -209,16 +209,16 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
 
   return (
     <div className="w-full min-w-0 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg rounded-xl flex flex-col overflow-hidden">
-      <div className="p-3 border-b border-white/5 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-800/50 shrink-0">
+      <div className="p-3 border-b border-border flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-800/50 shrink-0">
         <div className="flex items-center gap-2">
           <div className={cn("w-3 h-3 rounded-full", column.color)} />
           <h3 className="font-semibold text-sm">{column.title}</h3>
-          <span className="text-xs bg-white/10 px-2 py-0.5 rounded-full text-muted-foreground">
+          <span className="text-xs bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded-full text-muted-foreground">
             {tasks.length}
           </span>
         </div>
         {column.id === "BACKLOG" && (
-          <button onClick={() => setIsCreating(true)} className="text-muted-foreground hover:text-foreground p-1 hover:bg-white/10 rounded transition-colors">
+          <button onClick={() => setIsCreating(true)} className="text-muted-foreground hover:text-foreground p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors">
             <Plus className="w-4 h-4" />
           </button>
         )}
@@ -472,12 +472,12 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
       {/* 배분승인대기 진입 확인 모달 (FR-05-021) */}
       {assignConfirm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-primary" /> 담당자 배정 확인
               </h3>
-              <button onClick={() => setAssignConfirm(null)} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={() => setAssignConfirm(null)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               <span className="font-semibold text-foreground">"{assignConfirm.task.title}"</span> 업무를 담당자에게 배정하고 PM 승인을 요청합니다.
@@ -502,7 +502,7 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
                       onClick={() => setAssignConfirm({ ...assignConfirm, assigneeId: r.userId })}
                       className={cn(
                         "w-full text-left p-3 rounded-xl border transition-colors",
-                        assignConfirm.assigneeId === r.userId ? "border-primary bg-primary/5" : "border-white/10 hover:bg-white/5"
+                        assignConfirm.assigneeId === r.userId ? "border-primary bg-primary/5" : "border-border hover:bg-black/5 dark:hover:bg-white/5"
                       )}
                     >
                       <div className="flex items-center justify-between mb-1.5">
@@ -524,13 +524,13 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
             <select
               value={assignConfirm.assigneeId}
               onChange={(e) => setAssignConfirm({ ...assignConfirm, assigneeId: e.target.value })}
-              className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-6 appearance-none"
+              className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 mb-6 appearance-none"
             >
               <option value="" disabled>담당자 선택</option>
               {members.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </select>
             <div className="flex gap-3">
-              <button onClick={() => setAssignConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setAssignConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleConfirmAssign}
                 disabled={!assignConfirm.assigneeId}
@@ -546,12 +546,12 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
       {/* 배분 반려 사유 입력 모달 (FR-05-019) */}
       {rejectTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-bold flex items-center gap-2 text-red-400">
                 <XCircle className="w-5 h-5" /> 배분 반려
               </h3>
-              <button onClick={() => setRejectTarget(null)} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={() => setRejectTarget(null)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               <span className="font-semibold text-foreground">"{rejectTarget.title}"</span> 배정을 반려합니다. 업무는 대기 상태로 돌아갑니다.
@@ -560,14 +560,14 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
               <MessageSquare className="w-4 h-4 absolute left-3 top-3.5 text-muted-foreground" />
               <textarea
                 autoFocus
-                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-24"
+                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-24"
                 placeholder="반려 사유를 입력해주세요."
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
               />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setRejectTarget(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setRejectTarget(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleReject}
                 disabled={!rejectReason.trim() || processing === rejectTarget.id}

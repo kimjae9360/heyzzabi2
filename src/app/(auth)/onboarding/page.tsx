@@ -91,7 +91,7 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      <div className="glass py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-white/10 relative overflow-hidden">
+      <div className="glass py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-border relative overflow-hidden">
         {error && (
           <div className="p-3 mb-5 rounded-lg bg-red-500/10 text-red-500 text-sm">
             {error}
@@ -107,7 +107,7 @@ export default function OnboardingPage() {
                 <input
                   type="password"
                   required
-                  className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
+                  className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
                   placeholder="보안을 위해 강력한 비밀번호 설정"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -122,7 +122,7 @@ export default function OnboardingPage() {
                 <input
                   type="password"
                   required
-                  className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
+                  className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
                   placeholder="비밀번호 다시 입력"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -151,7 +151,7 @@ export default function OnboardingPage() {
                     <input
                       type="text"
                       required
-                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
+                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
                       placeholder="홍길동"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
@@ -164,7 +164,7 @@ export default function OnboardingPage() {
                   <div className="relative">
                     <Building className="absolute left-3 top-3 h-5 w-5 text-muted-foreground pointer-events-none" />
                     <select
-                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm appearance-none"
+                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm appearance-none"
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
                     >
@@ -180,7 +180,7 @@ export default function OnboardingPage() {
                     <Phone className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                     <input
                       type="text"
-                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
+                      className="w-full pl-10 bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none text-sm"
                       placeholder="010-0000-0000"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -212,7 +212,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 text-sm font-bold hover:bg-white/5 transition-colors"
+                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border text-sm font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" /> 이전
               </button>

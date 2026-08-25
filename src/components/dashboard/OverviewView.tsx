@@ -308,7 +308,7 @@ function StatCard({ icon, label, value, href }: { icon: React.ReactNode; label: 
   return (
     <Link
       href={href}
-      className="glass p-4 rounded-xl flex flex-col justify-between group hover:bg-black/5 dark:hover:bg-white/5 transition-colors border border-white/10 hover:border-primary/30"
+      className="glass p-4 rounded-xl flex flex-col justify-between group hover:bg-black/5 dark:hover:bg-white/5 transition-colors border border-border hover:border-primary/30"
     >
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 bg-black/5 dark:bg-white/10 rounded-lg group-hover:scale-110 transition-transform">

@@ -38,12 +38,12 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed top-0 left-0 h-screen bg-black/5 dark:bg-white/5 border-r border-white/10 flex flex-col transition-all duration-300 ease-in-out z-50 backdrop-blur-xl",
+        "fixed top-0 left-0 h-screen bg-black/5 dark:bg-white/5 border-r border-border flex flex-col transition-all duration-300 ease-in-out z-50 backdrop-blur-xl",
         isOpen ? "w-64" : "w-16"
       )}
     >
       {/* Header */}
-      <div className="h-16 flex items-center justify-between px-3 border-b border-white/5">
+      <div className="h-16 flex items-center justify-between px-3 border-b border-border">
         {isOpen && (
           <Link href="/" className="flex items-center gap-2 overflow-hidden whitespace-nowrap pl-1 group">
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-md">
@@ -94,7 +94,7 @@ export function Sidebar() {
       </div>
 
       {/* Footer: DEV 롤 토글 / 프로필 / 설정 / 테마 / 로그아웃 */}
-      <div className={cn("p-3 border-t border-white/5 flex flex-col gap-1", !isOpen && "items-center")}>
+      <div className={cn("p-3 border-t border-border flex flex-col gap-1", !isOpen && "items-center")}>
         <DevRoleToggle isOpen={isOpen} />
 
         <div className={cn("flex items-center", isOpen ? "w-full gap-1" : "flex-col gap-1")}>
@@ -169,18 +169,18 @@ export function Sidebar() {
 
       {mounted && showLogoutConfirm && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-bold flex items-center gap-2 text-red-400">
                 <LogOut className="w-5 h-5" /> 로그아웃
               </h3>
-              <button onClick={() => setShowLogoutConfirm(false)} className="p-1.5 rounded-lg hover:bg-white/5">
+              <button onClick={() => setShowLogoutConfirm(false)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <p className="text-sm text-muted-foreground mb-6">정말 로그아웃 하시겠습니까?</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={logout}
                 className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 flex items-center justify-center gap-2"

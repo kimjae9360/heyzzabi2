@@ -38,7 +38,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <div className="glass py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-white/10 relative overflow-hidden">
+      <div className="glass py-8 px-4 shadow sm:rounded-2xl sm:px-10 border border-border relative overflow-hidden">
         {/* Decor */}
         <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/20 blur-3xl rounded-full pointer-events-none" />
 
@@ -58,7 +58,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
-                className="block w-full pl-10 pr-[130px] sm:text-sm bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none placeholder:text-muted-foreground"
+                className="block w-full pl-10 pr-[130px] sm:text-sm bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none placeholder:text-muted-foreground"
                 placeholder="아이디"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
@@ -78,7 +78,7 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
-                className="block w-full pl-10 sm:text-sm bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none placeholder:text-muted-foreground"
+                className="block w-full pl-10 sm:text-sm bg-black/5 dark:bg-white/5 border border-border rounded-xl py-3 focus:ring-2 focus:ring-primary/50 focus:outline-none placeholder:text-muted-foreground"
                 placeholder="비밀번호"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -97,7 +97,7 @@ export default function LoginPage() {
           </div>
         </form>
 
-        <div className="mt-6 text-center text-xs text-muted-foreground bg-black/5 dark:bg-white/5 p-4 rounded-xl border border-white/5">
+        <div className="mt-6 text-center text-xs text-muted-foreground bg-black/5 dark:bg-white/5 p-4 rounded-xl border border-border">
           <p className="font-bold mb-1 text-foreground">테스트 계정 안내</p>
           <p>PM (관리자): 아이디 <b>pm</b> / 비번 <b>admin</b></p>
           <p>MEMBER (신규): 아이디 <b>newbie</b> / 비번 <b>temp</b></p>

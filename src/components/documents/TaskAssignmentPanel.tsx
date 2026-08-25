@@ -194,7 +194,7 @@ export function TaskAssignmentPanel({
           AI가 추천한 담당자와 일정입니다. 필요하면 담당자·일정을 직접 바꾼 뒤 확정하세요.
         </p>
         <GanttChart items={ganttItems} />
-        <div className="border border-white/10 rounded-xl overflow-hidden">
+        <div className="border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-black/5 dark:bg-white/5">
               <tr>
@@ -204,7 +204,7 @@ export function TaskAssignmentPanel({
                 <th className="px-4 py-3 font-bold w-64">시작~종료일</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-border">
               {drafts.map(d => (
                 <Fragment key={d.taskId}>
                   <tr className="align-top">
@@ -235,7 +235,7 @@ export function TaskAssignmentPanel({
                       <select
                         value={d.assigneeId}
                         onChange={e => updateDraft(d.taskId, { assigneeId: e.target.value })}
-                        className="w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40"
                       >
                         <option value="" className="bg-background text-foreground">미배정</option>
                         {members.map(m => (
@@ -251,10 +251,10 @@ export function TaskAssignmentPanel({
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <input type="date" value={d.wbsStart} onChange={e => updateDraft(d.taskId, { wbsStart: e.target.value })}
-                          className="bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                          className="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
                         <span className="text-muted-foreground">~</span>
                         <input type="date" value={d.wbsEnd} onChange={e => updateDraft(d.taskId, { wbsEnd: e.target.value })}
-                          className="bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                          className="bg-black/5 dark:bg-white/5 border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40" />
                       </div>
                     </td>
                   </tr>
@@ -301,7 +301,7 @@ export function TaskAssignmentPanel({
       <div className="space-y-5">
         {tasks.length > 0 && <AssignedList tasks={tasks} members={members} isPM={isPM} expandedReason={expandedReason} setExpandedReason={setExpandedReason} reassign={reassign} reassigning={reassigning} />}
         {isPM ? (
-          <div className="p-10 text-center border border-dashed border-white/10 rounded-xl">
+          <div className="p-10 text-center border border-dashed border-border rounded-xl">
             <Bot className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground mb-4">
               {tasks.length === 0 ? "요구사항정의서를 바탕으로 업무를 추출하고 담당자를 배정합니다." : `미배정 업무 ${unassigned.length}건이 있습니다.`}
@@ -345,7 +345,7 @@ function AssignedList({
   return (
     <div className="space-y-4">
       <GanttChart items={ganttItems} />
-      <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-muted-foreground uppercase bg-black/5 dark:bg-white/5">
             <tr>
@@ -355,7 +355,7 @@ function AssignedList({
               <th className="px-4 py-3 font-bold w-28">상태</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-border">
             {assigned.map(t => {
               const reason = parseReason(t.assignmentReason);
               return (
@@ -395,7 +395,7 @@ function AssignedList({
                             value={t.assigneeId ?? ""}
                             onChange={e => reassign(t.id, e.target.value)}
                             disabled={reassigning === t.id}
-                            className="w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+                            className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                           >
                             <option value="" className="bg-background text-foreground">미배정</option>
                             {members.map(m => (
@@ -496,12 +496,12 @@ function GanttChart({ items }: { items: GanttItem[] }) {
   const dayColClass = (i: number) =>
     cn(
       "border-l border-dashed",
-      i === todayIndex ? "border-primary/40" : "border-white/10",
-      i === dayCount - 1 && "border-r border-white/10"
+      i === todayIndex ? "border-primary/40" : "border-border",
+      i === dayCount - 1 && "border-r border-border"
     );
 
   return (
-    <div className="border border-white/10 rounded-xl p-4 overflow-x-auto">
+    <div className="border border-border rounded-xl p-4 overflow-x-auto">
       <div style={{ minWidth: `${96 + dayCount * 52}px` }}>
         <div className="grid gap-y-2" style={{ gridTemplateColumns: `96px 1fr` }}>
           <div />

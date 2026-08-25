@@ -129,7 +129,7 @@ export default function ProfilePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* 좌측: 이름 · 이메일 · 권한 + 비밀번호 변경 */}
-        <div className="glass rounded-2xl border border-white/5 shadow-sm p-6 space-y-5">
+        <div className="glass rounded-2xl border border-border shadow-sm p-6 space-y-5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xl font-bold shrink-0">
               {user?.name?.charAt(0) ?? "?"}
@@ -140,7 +140,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="divide-y divide-white/5 border-t border-white/5 pt-2">
+          <div className="divide-y divide-border border-t border-border pt-2">
             <div className="flex items-center gap-3 py-3 text-sm">
               <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
               <span className="text-muted-foreground w-20">이메일</span>
@@ -155,14 +155,14 @@ export default function ProfilePage() {
 
           <button
             onClick={() => setPasswordModalOpen(true)}
-            className="w-full flex justify-center items-center gap-2 py-2.5 rounded-xl border border-white/10 hover:bg-white/5 text-sm font-bold transition-colors"
+            className="w-full flex justify-center items-center gap-2 py-2.5 rounded-xl border border-border hover:bg-black/5 dark:hover:bg-white/5 text-sm font-bold transition-colors"
           >
             <KeyRound className="w-4 h-4 text-primary" /> 비밀번호 변경
           </button>
         </div>
 
         {/* 우측: 내 정보 수정 */}
-        <div className="glass rounded-2xl border border-white/5 shadow-sm p-6 space-y-4">
+        <div className="glass rounded-2xl border border-border shadow-sm p-6 space-y-4">
           <h2 className="font-bold flex items-center gap-2">
             <Pencil className="w-4 h-4 text-primary" /> 내 정보 수정
           </h2>
@@ -180,7 +180,7 @@ export default function ProfilePage() {
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                   placeholder="010-0000-0000"
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div>
@@ -209,12 +209,12 @@ export default function ProfilePage() {
 
       {passwordModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 <KeyRound className="w-5 h-5 text-primary" /> 비밀번호 변경
               </h3>
-              <button onClick={closePasswordModal} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={closePasswordModal} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
 
             {error && (
@@ -230,7 +230,7 @@ export default function ProfilePage() {
                   autoFocus
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div>
@@ -240,7 +240,7 @@ export default function ProfilePage() {
                   required
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div>
@@ -250,11 +250,11 @@ export default function ProfilePage() {
                   required
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="w-full px-4 py-2.5 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={closePasswordModal} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+                <button type="button" onClick={closePasswordModal} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
                 <button
                   type="submit"
                   disabled={saving}

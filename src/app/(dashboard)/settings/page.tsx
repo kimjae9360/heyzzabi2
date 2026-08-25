@@ -115,7 +115,7 @@ export default function SettingsPage() {
 
       {/* 에이전트 설정 — 일반유저는 조정할 일이 없어 섹션 자체를 안 보여준다(PM 전용) */}
       {isPM && (
-        <section className="glass rounded-2xl border border-white/5 overflow-hidden">
+        <section className="glass rounded-2xl border border-border overflow-hidden">
           <button
             onClick={() => setAgentSectionOpen(v => !v)}
             className="w-full flex items-center justify-between gap-3 p-6 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
@@ -158,20 +158,20 @@ export default function SettingsPage() {
                 onChange={t => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, temperature: t } }))}
                 editable={isPM}
               >
-                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
                   <label className="text-xs font-semibold text-muted-foreground shrink-0">한 번에 추출할 업무 개수</label>
                   <input
                     type="number" min={1} max={agentConfig.taskAssign.maxTasks} step={1}
                     value={agentConfig.taskAssign.minTasks}
                     onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, minTasks: Math.max(1, Number(e.target.value) || 1) } }))}
-                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
                   />
                   <span className="text-xs text-muted-foreground">~</span>
                   <input
                     type="number" min={agentConfig.taskAssign.minTasks} max={15} step={1}
                     value={agentConfig.taskAssign.maxTasks}
                     onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, maxTasks: Math.min(15, Number(e.target.value) || c.taskAssign.minTasks) } }))}
-                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-border rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
                   />
                   <span className="text-xs text-muted-foreground">개 (기본 3~7)</span>
                 </div>
@@ -187,7 +187,7 @@ export default function SettingsPage() {
       )}
 
       {/* 고객지원 */}
-      <section className="glass rounded-2xl border border-white/5 p-6 space-y-4">
+      <section className="glass rounded-2xl border border-border p-6 space-y-4">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-primary" /> 고객지원
@@ -195,7 +195,7 @@ export default function SettingsPage() {
           <p className="text-xs text-muted-foreground mt-1">자주 묻는 질문과 사용법입니다. 해결되지 않으면 아래 문의 메일로 연락해 주세요.</p>
         </div>
 
-        <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden">
+        <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
           {FAQ_ITEMS.map((item, i) => (
             <div key={i}>
               <button
@@ -223,9 +223,9 @@ export default function SettingsPage() {
       {/* 법적 고지 — 이용약관/개인정보처리방침도 FAQ와 동일하게 눌러서 펼쳐본다.
           전체 내용은 /settings/legalContent.ts를 공유해서 /settings/terms, /settings/privacy
           단독 페이지(직접 링크 공유용)와 문구가 어긋나지 않게 한다. */}
-      <section className="glass rounded-2xl border border-white/5 p-6 space-y-3">
+      <section className="glass rounded-2xl border border-border p-6 space-y-3">
         <h2 className="text-lg font-bold">법적 고지</h2>
-        <div className="border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5">
+        <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
           <div>
             <button
               onClick={() => setOpenLegal(v => (v === "terms" ? null : "terms"))}
@@ -288,7 +288,7 @@ function AgentTemperatureCard({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 p-4">
+    <div className="rounded-xl border border-border p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="font-semibold text-sm flex items-center gap-2">{title} <AgentBadge agent={agent} /></h3>
         <span className="text-xs font-mono text-muted-foreground">{temperature.toFixed(2)}</span>

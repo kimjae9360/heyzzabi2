@@ -122,7 +122,7 @@ export default function AIHubPage() {
                   ? "bg-primary text-primary-foreground rounded-br-none"
                   : message.role === "system"
                   ? "bg-muted text-foreground border border-border rounded-bl-none whitespace-pre-wrap"
-                  : "glass text-foreground border border-white/10 rounded-bl-none whitespace-pre-wrap"
+                  : "glass text-foreground border border-border rounded-bl-none whitespace-pre-wrap"
               )}
             >
               {message.content}

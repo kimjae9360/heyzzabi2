@@ -19,7 +19,7 @@ export function MobileNav() {
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 w-full glass border-t border-white/5 z-50">
+      <div className="md:hidden fixed bottom-0 left-0 w-full glass border-t border-border z-50">
         <nav className="flex items-center justify-around p-3">
           <Link href="/" className={cn("flex flex-col items-center gap-1", pathname === "/" ? "text-primary" : "text-foreground/70")}>
             <LayoutDashboard className="w-5 h-5" />
@@ -45,10 +45,10 @@ export function MobileNav() {
       {menuOpen && typeof document !== "undefined" && createPortal(
         <div className="md:hidden fixed inset-0 z-[100] flex items-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setMenuOpen(false)} />
-          <div className="relative w-full bg-background border-t border-white/10 rounded-t-2xl p-4 pb-8 animate-in slide-in-from-bottom duration-200">
+          <div className="relative w-full bg-background border-t border-border rounded-t-2xl p-4 pb-8 animate-in slide-in-from-bottom duration-200">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-bold">메뉴</h3>
-              <button onClick={() => setMenuOpen(false)} className="p-1.5 rounded-lg hover:bg-white/5">
+              <button onClick={() => setMenuOpen(false)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -68,7 +68,7 @@ export function MobileNav() {
                 </Link>
               ))}
             </div>
-            <div className="border-t border-white/5 pt-2 flex flex-col gap-1">
+            <div className="border-t border-border pt-2 flex flex-col gap-1">
               <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">
                 <UserIcon className="w-4 h-4" /> 프로필
               </Link>

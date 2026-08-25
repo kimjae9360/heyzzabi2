@@ -436,7 +436,7 @@ export default function DocumentsPage() {
               const prevDone = i > 0 ? stepDone(selectedDoc, PIPELINE_STEPS[i - 1]) : false;
               return (
                 <Fragment key={step}>
-                  {i > 0 && <div className={cn("h-0.5 w-6 md:w-10 rounded-full transition-colors", prevDone ? "bg-emerald-500/50" : "bg-white/10")} />}
+                  {i > 0 && <div className={cn("h-0.5 w-6 md:w-10 rounded-full transition-colors", prevDone ? "bg-emerald-500/50" : "bg-black/10 dark:bg-white/10")} />}
                   <button
                     onClick={() => setActiveTab(step)}
                     className={cn(
@@ -465,7 +465,7 @@ export default function DocumentsPage() {
           1fr 대신 minmax(0,1fr)로 트랙 크기를 컨테이너 폭에 고정하고 내부에서만 overflow 스크롤되게 한다 */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
         {/* Document list */}
-        <div className="glass rounded-2xl border border-white/5 p-4 space-y-3">
+        <div className="glass rounded-2xl border border-border p-4 space-y-3">
           <button
             onClick={() => setNewDocModalOpen(true)}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
@@ -521,7 +521,7 @@ export default function DocumentsPage() {
                       <div className="flex items-center gap-1 mb-1.5">
                         {PIPELINE_STEPS.map((step, i) => (
                           <Fragment key={step}>
-                            {i > 0 && <div className={cn("h-px w-3", stepDone(doc, PIPELINE_STEPS[i - 1]) ? "bg-emerald-500/40" : "bg-white/10")} />}
+                            {i > 0 && <div className={cn("h-px w-3", stepDone(doc, PIPELINE_STEPS[i - 1]) ? "bg-emerald-500/40" : "bg-black/10 dark:bg-white/10")} />}
                             <div
                               title={PIPELINE_TAB_LABEL[step]}
                               className={cn(
@@ -565,7 +565,7 @@ export default function DocumentsPage() {
         </div>
 
         {/* Detail / preview panel */}
-        <div className="glass rounded-2xl border border-white/5 p-6 min-h-[500px]">
+        <div className="glass rounded-2xl border border-border p-6 min-h-[500px]">
           {!selectedDoc ? (
             <div className="h-full flex items-center justify-center text-muted-foreground text-sm py-20">
               왼쪽에서 문서를 선택하거나 새로 등록해주세요.
@@ -636,26 +636,26 @@ export default function DocumentsPage() {
 
       {rejectModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-bold flex items-center gap-2 text-red-400">
                 <RotateCcw className="w-5 h-5" /> 반려 사유 입력
               </h3>
-              <button onClick={() => setRejectModal(null)} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={() => setRejectModal(null)} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
             <p className="text-sm text-muted-foreground mb-4">반려 사유는 작성자에게 그대로 전달됩니다.</p>
             <div className="relative mb-4">
               <MessageSquare className="w-4 h-4 absolute left-3 top-3.5 text-muted-foreground" />
               <textarea
                 autoFocus
-                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-28"
+                className="w-full pl-9 pr-4 py-3 bg-black/5 dark:bg-white/5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none h-28"
                 placeholder="예: 3번 항목 재검토가 필요합니다."
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
               />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setRejectModal(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setRejectModal(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleReject}
                 disabled={!rejectReason.trim() || !!busy}
@@ -671,7 +671,7 @@ export default function DocumentsPage() {
       {/* 문서 삭제 확인 모달 */}
       {deleteTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-background border border-white/10 rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
+          <div className="bg-background border border-border rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4">
             <h3 className="text-xl font-bold mb-2 flex items-center gap-2 text-red-400">
               <Trash2 className="w-5 h-5" /> 문서 삭제
             </h3>
@@ -680,7 +680,7 @@ export default function DocumentsPage() {
               이 작업은 되돌릴 수 없습니다.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm font-semibold hover:bg-white/5">취소</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5">취소</button>
               <button
                 onClick={handleDeleteDoc}
                 disabled={deleting}
@@ -824,7 +824,7 @@ function DocDetail({
             </span>
           </button>
           {proposalRefOpen && (
-            <div className="mt-2 border border-white/10 rounded-xl overflow-hidden max-h-64 overflow-y-auto bg-black/5 dark:bg-black/20">
+            <div className="mt-2 border border-border rounded-xl overflow-hidden max-h-64 overflow-y-auto bg-black/5 dark:bg-black/20">
               {parsedProposalRef ? (
                 <ProposalTemplate doc={parsedProposalRef} title={doc.title} dateLabel={dateLabel} />
               ) : (
@@ -876,7 +876,7 @@ function DocDetail({
             readOnly={rawLocked}
             placeholder="내용이 없습니다."
             className={cn(
-              "w-full bg-black/5 dark:bg-white/5 border border-white/10 rounded-xl p-4 whitespace-pre-wrap overflow-y-auto text-muted-foreground resize-none focus:outline-none transition-all",
+              "w-full bg-black/5 dark:bg-white/5 border border-border rounded-xl p-4 whitespace-pre-wrap overflow-y-auto text-muted-foreground resize-none focus:outline-none transition-all",
               rawLocked
                 ? cn("cursor-default", rawLockedExpanded ? "h-64" : "h-20")
                 : "h-64 focus:ring-2 focus:ring-primary/40"
@@ -885,7 +885,7 @@ function DocDetail({
         </div>
       )}
 
-      <div className="border border-white/10 rounded-xl overflow-hidden">
+      <div className="border border-border rounded-xl overflow-hidden">
         <div className="max-h-[520px] overflow-y-auto bg-black/5 dark:bg-black/20">
           {content && parsedContent ? (
             <div id="print-area">

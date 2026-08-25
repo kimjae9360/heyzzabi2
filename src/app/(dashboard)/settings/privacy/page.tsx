@@ -18,14 +18,14 @@ export default function PrivacyPolicyPage() {
         <p className="text-xs text-muted-foreground">시행일: {PRIVACY_EFFECTIVE_DATE}</p>
       </div>
 
-      <div className="glass rounded-2xl border border-white/5 p-6 md:p-8 space-y-6">
+      <div className="glass rounded-2xl border border-border p-6 md:p-8 space-y-6">
         {PRIVACY_SECTIONS.map((s) => (
           <div key={s.title}>
             <h2 className="font-bold text-sm mb-2">{s.title}</h2>
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{s.body}</p>
           </div>
         ))}
-        <div className="pt-4 border-t border-white/5">
+        <div className="pt-4 border-t border-border">
           <p className="text-sm text-muted-foreground">부칙: 이 방침은 {PRIVACY_EFFECTIVE_DATE}부터 시행합니다.</p>
         </div>
       </div>

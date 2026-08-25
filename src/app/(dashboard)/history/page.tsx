@@ -275,12 +275,12 @@ export default function HistoryPage() {
       </div>
 
       {activity.length === 0 ? (
-        <div className="glass rounded-2xl border border-white/5 p-16 text-center">
+        <div className="glass rounded-2xl border border-border p-16 text-center">
           <HistoryIcon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-muted-foreground text-sm">아직 이력이 없습니다.</p>
         </div>
       ) : (
-        <div className="glass rounded-2xl border border-white/5 divide-y divide-white/5 overflow-hidden">
+        <div className="glass rounded-2xl border border-border divide-y divide-border overflow-hidden">
           {pagedActivity.map(item => {
             const meta = STATUS_META[item.status] ?? STATUS_META.DRAFT;
             const Icon = meta.icon;
@@ -291,7 +291,7 @@ export default function HistoryPage() {
               <button
                 key={item.id}
                 onClick={() => setSelectedItem(item)}
-                className="w-full flex items-start gap-4 p-4 hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-start gap-4 p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left"
               >
                 <div className={cn(
                   "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
@@ -399,10 +399,10 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
         onClick={onClose}
       >
         <div
-          className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col"
+          className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+          <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-lg font-bold">{doc.title}</h3>
@@ -422,7 +422,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
               >
                 문서생성에서 열기 <ExternalLink className="w-3.5 h-3.5" />
               </Link>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
           </div>
 
@@ -434,7 +434,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
           )}
 
           <div className="flex-1 overflow-y-auto p-5">
-            <div id="print-area" className="border border-white/10 rounded-xl overflow-hidden bg-black/5 dark:bg-black/20">
+            <div id="print-area" className="border border-border rounded-xl overflow-hidden bg-black/5 dark:bg-black/20">
               {parsedProposal ? (
                 <ProposalTemplate doc={parsedProposal} title={doc.title} dateLabel={dateLabel} />
               ) : parsedReqSpec ? (
@@ -475,8 +475,8 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
 
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
-        <div className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+        <div className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-lg font-bold">{item.title}</h3>
@@ -492,7 +492,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
                   업무관리에서 열기 <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               )}
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
           </div>
 
@@ -507,7 +507,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
                 .slice()
                 .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0))
                 .map((c, i) => (
-                  <div key={i} className="border border-white/10 rounded-xl p-3 space-y-1.5">
+                  <div key={i} className="border border-border rounded-xl p-3 space-y-1.5">
                     <p className="text-xs font-semibold flex items-center gap-1.5">
                       <UserIcon className="w-3.5 h-3.5 text-primary" /> {c.name ?? "이름 없음"} (적합도 {c.fitScore}점)
                       {relatedTask?.assigneeId && relatedTask.assigneeId === c.userId && (
@@ -542,10 +542,10 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
         onClick={onClose}
       >
         <div
-          className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col"
+          className="bg-background border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col"
           onClick={e => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+          <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-lg font-bold">{task.title}</h3>
@@ -560,7 +560,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
               <Link href="/tasks" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
                 업무관리에서 열기 <ExternalLink className="w-3.5 h-3.5" />
               </Link>
-              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5"><X className="w-4 h-4" /></button>
             </div>
           </div>
 
@@ -599,7 +599,7 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
             )}
 
             {reason && (
-              <div className="border border-white/10 rounded-xl p-3 space-y-1.5">
+              <div className="border border-border rounded-xl p-3 space-y-1.5">
                 <p className="text-xs font-semibold flex items-center gap-1.5">
                   <Bot className="w-3.5 h-3.5 text-primary" /> AI 배정 근거 (적합도 {reason.fitScore}점)
                 </p>
