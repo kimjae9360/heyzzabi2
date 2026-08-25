@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { getSession, type SessionPayload } from "@/lib/session";
 
 type Guard = { session: SessionPayload | null; error: NextResponse | null };
 
 // 로그인만 되어 있으면 통과 — 세션이 없으면(로그인 안 함/쿠키 만료) 401.
+// 로그인 당시엔 ACTIVE였어도 그 사이 PM이 계정을 휴직/퇴사/잠금 처리했을 수 있으므로, 서명된
+// 쿠키만 믿지 않고 매번 DB의 현재 상태를 함께 확인한다 — 그래야 이미 로그인해 있던 세션도
+// 상태가 바뀌는 즉시(다음 API 호출부터) 차단된다. src/lib/auth.tsx의 주기적 세션 점검
+// (/api/auth/me)과 짝을 이뤄, API 호출이 없는 동안에도 최대 폴링 주기 안에는 강제 로그아웃된다.
 export async function requireAuth(): Promise<Guard> {
   const session = await getSession();
   if (!session) {
     return { session: null, error: NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 }) };
+  }
+  const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { status: true } });
+  if (!user || user.status !== "ACTIVE") {
+    return { session: null, error: NextResponse.json({ error: "계정이 비활성화되어 로그인이 만료되었습니다." }, { status: 401 }) };
   }
   return { session, error: null };
 }

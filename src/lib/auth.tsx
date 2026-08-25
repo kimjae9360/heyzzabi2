@@ -35,6 +35,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
+  // 로그인해 있는 동안 PM이 이 계정을 휴직/퇴사/잠금 처리할 수 있다 — 그 순간 즉시 화면이
+  // 튕기진 않지만(세션 쿠키 자체는 만료 전까지 유효한 서명이므로), 다음 API 호출부터는
+  // requireAuth가 막는다. 여기서는 API 호출이 없는 유휴 상태에서도 놓치지 않도록 주기적으로
+  // /api/auth/me를 불러 계정이 여전히 유효한지 확인하고, 아니면 사유를 알리고 강제 로그아웃한다.
+  useEffect(() => {
+    if (!user) return;
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          setUser(null);
+          localStorage.removeItem("hz_session");
+          alert(data?.error || "계정이 비활성화되어 로그아웃되었습니다.");
+          window.location.href = "/login";
+        }
+      } catch {
+        // 네트워크 오류 등은 일시적일 수 있으므로 무시하고 다음 주기에 다시 시도한다.
+      }
+    };
+    const interval = setInterval(checkSession, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
   const login = async (email: string, password: string) => {
     const res = await fetch("/api/auth/login", {
       method: "POST",

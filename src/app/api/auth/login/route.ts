@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword, isHashed } from "@/lib/passwordHash";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { STATUS_META } from "@/lib/employeeOptions";
+
+// 휴직/퇴사/잠금 상태에서는 비밀번호가 맞아도 로그인을 막는다 — 상태별로 사유를 알려준다.
+const STATUS_BLOCK_MESSAGE: Record<string, string> = {
+  LEAVE: `휴직 처리된 계정입니다. 로그인할 수 없습니다. (상태: ${STATUS_META.LEAVE.label})`,
+  RESIGNED: `퇴사 처리된 계정입니다. 로그인할 수 없습니다. (상태: ${STATUS_META.RESIGNED.label})`,
+  LOCKED: `잠긴 계정입니다. 관리자(PM)에게 문의하세요. (상태: ${STATUS_META.LOCKED.label})`,
+};
 
 // 로그인 처리: 이메일/비밀번호를 검증하고, 성공 시 비밀번호를 제외한 사용자 정보를 반환한다.
 export async function POST(request: Request) {
@@ -56,6 +64,14 @@ export async function POST(request: Request) {
       }
     }
 
+
+    // 비밀번호는 맞았더라도 계정 상태(휴직/퇴사/잠금)면 로그인 자체를 막는다 — 세션 쿠키도
+    // 발급하지 않는다. status 필드가 없는 낡은 시딩 데이터 등 예외적인 경우를 대비해
+    // STATUS_BLOCK_MESSAGE에 없는 값(ACTIVE 등)은 전부 통과시킨다.
+    const blockMessage = STATUS_BLOCK_MESSAGE[user.status];
+    if (blockMessage) {
+      return NextResponse.json({ error: blockMessage }, { status: 403 });
+    }
 
     // 응답에는 비밀번호 필드를 절대 포함하지 않도록 구조분해로 제거한다.
     const { password: _, ...userWithoutPassword } = user;
