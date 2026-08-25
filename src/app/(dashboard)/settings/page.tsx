@@ -38,7 +38,8 @@ export default function SettingsPage() {
   const [savedAgents, setSavedAgents] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   // 에이전트 설정은 PM 전용(일반유저에게는 섹션 자체를 안 보여줌)이라 collapse 상태는 PM한테만 의미가 있다.
-  const [agentSectionOpen, setAgentSectionOpen] = useState(true);
+  // 기본값은 접힌 상태 — 페이지 진입 시 바로 눈에 띄지 않아도 되는 설정이라는 판단(사용자 요청).
+  const [agentSectionOpen, setAgentSectionOpen] = useState(false);
   const [openLegal, setOpenLegal] = useState<"terms" | "privacy" | null>(null);
 
   useEffect(() => {
