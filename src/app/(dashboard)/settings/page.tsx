@@ -3,9 +3,23 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, FolderKanban } from "lucide-react";
+import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, FolderKanban, HelpCircle, Mail, ChevronDown, FileText, ShieldCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { parseAgentConfig, DEFAULT_AGENT_CONFIG, type AgentConfig } from "@/lib/agentConfig";
+
+const SUPPORT_EMAIL = "kimjae9360@gmail.com";
+
+// 사용방법 위주 FAQ — 실제 파이프라인/화면 동작을 근거로 작성(일반적인 문구 아님)
+const FAQ_ITEMS = [
+  { q: "문서는 어떻게 만드나요?", a: "문서생성 페이지에서 \"새 회의록/문서\"로 회의록을 등록하면, AI가 기획서를 생성합니다. PM 검토·승인을 거치면 요구사항정의서 생성 → 승인 → 업무 자동 추출까지 이어집니다." },
+  { q: "업무 담당자는 어떻게 배정하나요?", a: "요구사항정의서가 승인되면 문서생성의 \"업무 배분\" 탭에서 AI 추천을 받아 배정하거나, 업무관리 칸반에서 직접 담당자를 지정해 배분 승인을 요청할 수 있습니다." },
+  { q: "\"배분승인대기\"는 무슨 뜻인가요?", a: "업무 완료 승인이 아니라, 담당자 지정에 대한 PM 승인 대기 상태입니다. PM이 승인해야 그 업무가 \"진행 중\"으로 넘어갑니다." },
+  { q: "알림은 어디서 확인하나요?", a: "모든 화면 상단 우측 종 아이콘에서 확인할 수 있습니다. 안읽음이 있으면 아이콘이 주황색으로 바뀌고, 항목을 클릭하면 관련 화면으로 이동하며 읽음 처리됩니다." },
+  { q: "설정의 \"에이전트 설정\"은 무엇을 바꾸나요?", a: "AI가 문서/업무를 생성할 때의 일관성(temperature)과, 업무 배분 시 한 번에 추출할 업무 개수 범위를 조정합니다. 환각 방지를 위해 일관성은 일정 범위 안에서만 조정할 수 있습니다." },
+  { q: "PM과 일반유저는 권한이 어떻게 다른가요?", a: "PM은 프로젝트 생성, 문서·업무 배분 승인, 직원관리, 에이전트 설정 등을 할 수 있습니다. 일반유저는 본인이 담당한 업무 위주로 진행 상황을 관리합니다." },
+  { q: "비밀번호를 잊어버렸어요.", a: "현재는 자가 비밀번호 재설정 기능이 없습니다. 소속 PM(관리자)에게 계정 초기화를 요청해 주세요." },
+];
 
 type Project = {
   id: string;
@@ -21,6 +35,7 @@ export default function SettingsPage() {
   const [agentConfig, setAgentConfig] = useState<AgentConfig>(DEFAULT_AGENT_CONFIG);
   const [savingAgents, setSavingAgents] = useState(false);
   const [savedAgents, setSavedAgents] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -159,6 +174,53 @@ export default function SettingsPage() {
         ) : (
           <p className="text-xs text-muted-foreground">* 설정 수정은 PM만 가능합니다.</p>
         )}
+      </section>
+
+      {/* 고객지원 */}
+      <section className="glass rounded-2xl border border-white/5 p-6 space-y-4">
+        <div>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-primary" /> 고객지원
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">자주 묻는 질문과 사용법입니다. 해결되지 않으면 아래 문의 메일로 연락해 주세요.</p>
+        </div>
+
+        <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden">
+          {FAQ_ITEMS.map((item, i) => (
+            <div key={i}>
+              <button
+                onClick={() => setOpenFaq(v => (v === i ? null : i))}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                <span className="text-sm font-semibold">{item.q}</span>
+                <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", openFaq === i && "rotate-180")} />
+              </button>
+              {openFaq === i && (
+                <p className="px-4 pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <a
+          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("[헤이짜비] 오류/문의")}`}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors w-fit"
+        >
+          <Mail className="w-4 h-4" /> 오류 문의하기 ({SUPPORT_EMAIL})
+        </a>
+      </section>
+
+      {/* 법적 고지 */}
+      <section className="glass rounded-2xl border border-white/5 p-6 space-y-3">
+        <h2 className="text-lg font-bold">법적 고지</h2>
+        <div className="flex flex-col gap-1">
+          <Link href="/settings/terms" className="flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm font-semibold">
+            <FileText className="w-4 h-4 text-muted-foreground" /> 이용약관
+          </Link>
+          <Link href="/settings/privacy" className="flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm font-semibold">
+            <ShieldCheck className="w-4 h-4 text-muted-foreground" /> 개인정보처리방침
+          </Link>
+        </div>
       </section>
     </div>
   );
