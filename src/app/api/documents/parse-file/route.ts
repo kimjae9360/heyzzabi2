@@ -28,6 +28,15 @@ export async function POST(request: NextRequest) {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
     } else if (name.endsWith(".pdf")) {
+      // pdf-parse(내부 pdfjs-dist)는 텍스트 추출 경로에서도 브라우저 전역 DOMMatrix를 참조한다.
+      // 로컬(Node)에서 동작했던 건 번들러가 브라우저용 폴리필을 끼워넣어준 우연이었고,
+      // Vercel 서버리스(순수 Node 런타임)에서는 진짜로 없어서 "DOMMatrix is not defined"로
+      // 죽었다(실제 프로덕션 버그). @napi-rs/canvas는 pdf-parse의 기존 의존성이라 별도 설치
+      // 없이 그 DOMMatrix 구현을 pdf-parse를 불러오기 전에 globalThis에 등록해서 재사용한다.
+      if (typeof (globalThis as { DOMMatrix?: unknown }).DOMMatrix === "undefined") {
+        const { DOMMatrix } = await import("@napi-rs/canvas");
+        (globalThis as { DOMMatrix?: unknown }).DOMMatrix = DOMMatrix;
+      }
       // 주의: pdf-parse v2부터 default export 함수가 아니라 PDFParse 클래스 기반 API로 바뀌었다.
       // 구버전(v1) 방식인 `pdfParse(buffer)` 형태로 쓰면 동작하지 않는다.
       const { PDFParse } = await import("pdf-parse");
@@ -39,8 +48,30 @@ export async function POST(request: NextRequest) {
         // 파서가 내부적으로 리소스를 잡고 있으므로 성공/실패와 무관하게 반드시 해제
         await parser.destroy();
       }
+    } else if (name.endsWith(".hwp")) {
+      // .hwp(구버전 바이너리 한/글 포맷)는 OLE/CFB 컨테이너 안에 zlib로 압축된 본문이 들어있는
+      // 구조라 mammoth/pdf-parse 같은 범용 라이브러리로는 못 연다. cfb로 컨테이너를 열고
+      // hwp.js로 문서 모델을 파싱한 뒤, 문단(Paragraph)의 글자 배열을 순서대로 이어붙인다.
+      // hwp.js는 초기 단계 라이브러리라 모든 .hwp 버전/구성을 보장하진 않는다.
+      const cfb = await import("cfb");
+      const { parse: parseHwp } = await import("hwp.js");
+      const cfbData = cfb.read(buffer, { type: "buffer" });
+      // cfb와 hwp.js가 각자 번들한 CFB 타입 선언이 서로 미묘하게 달라(같은 라이브러리의 버전 차이)
+      // 구조적으로는 동일한 객체인데도 타입 체크만 어긋난다 — 런타임 동작과는 무관.
+      const hwpDoc = parseHwp(cfbData as any);
+      text = hwpDoc.sections
+        .map((section: any) =>
+          section.content
+            .map((paragraph: any) =>
+              paragraph.content
+                .map((char: any) => (typeof char.value === "string" ? char.value : ""))
+                .join("")
+            )
+            .join("\n")
+        )
+        .join("\n\n");
     } else {
-      return NextResponse.json({ error: "지원하지 않는 파일 형식입니다. (.txt, .md, .docx, .pdf만 지원)" }, { status: 400 });
+      return NextResponse.json({ error: "지원하지 않는 파일 형식입니다. (.txt, .md, .docx, .pdf, .hwp만 지원)" }, { status: 400 });
     }
 
     text = text.trim();

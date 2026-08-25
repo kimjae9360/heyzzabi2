@@ -349,7 +349,7 @@ export function NewDocumentModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,.md,.docx,.pdf"
+                  accept=".txt,.md,.docx,.pdf,.hwp"
                   className="hidden"
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFilePicked(f); }}
                 />
@@ -365,7 +365,7 @@ export function NewDocumentModal({
                   <span className="font-medium text-sm">
                     {isParsingFile ? "파일에서 텍스트를 추출하는 중..." : fileName ? `${fileName} 첨부됨 (다시 선택하려면 클릭)` : "문서 파일 첨부"}
                   </span>
-                  <span className="text-xs opacity-70">.txt / .md / .docx / .pdf</span>
+                  <span className="text-xs opacity-70">.txt / .md / .docx / .pdf / .hwp</span>
                 </button>
               </div>
 
