@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Tooltip
@@ -41,8 +42,18 @@ const STATUS_COLORS: Record<string, string> = {
   DONE: "bg-emerald-500",
 };
 
+// statusChart는 API가 이미 한글 라벨로 만들어 내려주는데(dashboard/route.ts), 클릭 시 /tasks로
+// 보내려면 원래 상태 코드가 필요해서 여기서 역매핑한다.
+const STATUS_CODE_BY_LABEL: Record<string, string> = {
+  "대기": "BACKLOG",
+  "배분승인대기": "PENDING_APPROVAL",
+  "진행 중": "IN_PROGRESS",
+  "완료": "DONE",
+};
+
 export default function OverviewView() {
   const { user } = useAuth();
+  const router = useRouter();
   const isPM = user?.role === "PM";
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -170,7 +181,12 @@ export default function OverviewView() {
                     <PieChart>
                       <Pie data={statusChart} innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value">
                         {statusChart.map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.color}
+                            cursor="pointer"
+                            onClick={() => router.push(`/tasks?status=${STATUS_CODE_BY_LABEL[entry.name] ?? ""}`)}
+                          />
                         ))}
                       </Pie>
                       <Tooltip
@@ -182,13 +198,19 @@ export default function OverviewView() {
                 </div>
                 <div className="space-y-2 mt-2">
                   {statusChart.map((d: any) => (
-                    <div key={d.name} className="flex justify-between text-xs font-medium">
+                    <Link
+                      key={d.name}
+                      href={`/tasks?status=${STATUS_CODE_BY_LABEL[d.name] ?? ""}`}
+                      className="flex justify-between text-xs font-medium hover:text-primary transition-colors group"
+                    >
                       <span className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
                         {d.name}
                       </span>
-                      <span>{d.value}건</span>
-                    </div>
+                      <span className="flex items-center gap-1">
+                        {d.value}건 <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                    </Link>
                   ))}
                 </div>
               </>

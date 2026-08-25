@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Users, UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2 } from "lucide-react";
+import { Users, UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { DEPARTMENTS, POSITIONS, JOB_TITLES, STATUS_META, SKILL_SUGGESTIONS, CERT_SUGGESTIONS, PROJECT_SUGGESTIONS } from "@/lib/employeeOptions";
@@ -38,6 +38,9 @@ export default function MembersPage() {
 
   const [members, setMembers] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
+  // 담당자별 "아직 안 끝난" 업무 개수 — 대시보드의 "팀원별 업무량" 위젯엔 상위 6명만 나오고
+  // 전체보기로 갈 페이지가 없어서, 팀원 전체를 이미 다루는 이 화면에 붙이는 쪽을 택함.
+  const [activeTaskCounts, setActiveTaskCounts] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -73,10 +76,20 @@ export default function MembersPage() {
   };
 
   useEffect(() => {
-    fetch("/api/users")
-      .then(res => res.json())
-      .then(data => { if (data.success) setMembers(data.data); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      fetch("/api/users").then(r => r.json()),
+      fetch("/api/tasks").then(r => r.json()),
+    ]).then(([usersRes, tasksRes]) => {
+      if (usersRes.success) setMembers(usersRes.data);
+      if (tasksRes.success) {
+        const counts: Record<string, number> = {};
+        for (const t of tasksRes.data) {
+          if (!t.assigneeId || t.status === "DONE" || t.status === "CANCELLED") continue;
+          counts[t.assigneeId] = (counts[t.assigneeId] ?? 0) + 1;
+        }
+        setActiveTaskCounts(counts);
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   // Close dropdown when clicking outside
@@ -314,14 +327,15 @@ const handlePasswordReset = async (id: string, name: string) => {
                 <th className="px-6 py-4 font-semibold whitespace-nowrap">입사일 /<br />퇴사일</th>
                 <th className="px-6 py-4 font-semibold">역할</th>
                 <th className="px-6 py-4 font-semibold">상태</th>
+                <th className="px-6 py-4 font-semibold">업무량</th>
                 {isPM && <th className="px-6 py-4 font-semibold text-center">설정</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {loading ? (
-                <tr><td colSpan={7} className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></td></tr>
+                <tr><td colSpan={8} className="py-16 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="py-16 text-center text-muted-foreground">검색 결과가 없습니다.</td></tr>
+                <tr><td colSpan={8} className="py-16 text-center text-muted-foreground">검색 결과가 없습니다.</td></tr>
               ) : (
                 filtered.map(member => (
                   <tr key={member.id} className="hover:bg-white/5 transition-colors">
@@ -414,6 +428,20 @@ const handlePasswordReset = async (id: string, name: string) => {
                           STATUS_META[member.status].badgeClass
                         )}>
                           {STATUS_META[member.status].label}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Workload — PM은 업무 배정 대상이 아니라 집계 자체가 의미 없어 "-"로 표시 */}
+                    <td className="px-6 py-4">
+                      {member.role === "PM" ? (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      ) : (
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
+                          (activeTaskCounts[member.id] ?? 0) > 0 ? "bg-primary/10 text-primary" : "bg-white/5 text-muted-foreground"
+                        )}>
+                          <Briefcase className="w-3 h-3" /> {activeTaskCounts[member.id] ?? 0}건
                         </span>
                       )}
                     </td>

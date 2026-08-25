@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
-import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge } from "lucide-react";
+import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/layout/KanbanBoard";
 import { TaskDetailModal } from "@/components/projects/TaskDetailModal";
 
@@ -46,9 +47,16 @@ const GIT_STATUSES: Record<string, { label: string; color: string; bg: string; i
 export default function TasksPage() {
   const { user } = useAuth();
   const isPM = user?.role === "PM";
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // 대시보드 "업무 상태 분포" 차트에서 ?status=IN_PROGRESS 같은 링크로 들어오면 그 상태로 미리 필터링한다.
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (s) setStatusFilter(s);
+  }, [searchParams]);
 
   // 일반유저는 "내 업무"가 기본값 — 전체 업무 조회는 PM만 필요하다는 판단(FR-01-005 팀 전체 요약은 PM용)
   const [filterScope, setFilterScope] = useState<"ME" | "ALL">("ME");
@@ -143,6 +151,9 @@ export default function TasksPage() {
     if (filterScope === "ME" && user) {
       filtered = filtered.filter(t => t.assignee?.id === user.id);
     }
+    if (statusFilter) {
+      filtered = filtered.filter(t => t.status === statusFilter);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       filtered = filtered.filter(t => 
@@ -152,10 +163,10 @@ export default function TasksPage() {
       );
     }
     return filtered;
-  }, [tasks, filterScope, search, user]);
+  }, [tasks, filterScope, search, user, statusFilter]);
 
   // 탭·검색어가 바뀌면 목록이 통째로 달라지므로 페이지를 1로 되돌린다
-  useEffect(() => { setPage(1); }, [filterScope, search, viewMode]);
+  useEffect(() => { setPage(1); }, [filterScope, search, viewMode, statusFilter]);
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE));
   // 위 리셋 대상이 아닌 다른 이유로 목록이 줄어들 수도 있으므로(다른 화면에서 상태 변경 후 재조회 등),
   // 지금 페이지가 범위를 넘으면 마지막 페이지로 당겨서 빈 화면이 뜨지 않게 한다
@@ -231,6 +242,19 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
+
+      {/* 대시보드 "업무 상태 분포"에서 상태를 지정해 들어왔을 때만 보이는 필터 표시 — 지금 뭘로
+          좁혀서 보고 있는지 알려주고, 눌러서 지울 수 있게 한다. */}
+      {statusFilter && (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-primary/10 text-primary">
+            상태: {STATUSES.find(s => s.id === statusFilter)?.label ?? statusFilter}
+            <button onClick={() => setStatusFilter(null)} className="hover:opacity-70 transition-opacity" aria-label="필터 해제">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
