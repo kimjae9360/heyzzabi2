@@ -23,7 +23,8 @@ export function DashboardContent({ children }: { children: React.ReactNode }) {
         <div className="h-14 shrink-0 flex items-center justify-end px-4 md:px-8 border-b border-white/5">
           <NotificationBell />
         </div>
-        <main className="flex-1 p-4 md:p-8 min-w-0 flex flex-col">
+        {/* 상하 여백을 좌우보다 절반 정도로 줄임 — 알림 바 아래 여백이 과하다는 피드백(모든 탭 공용) */}
+        <main className="flex-1 px-4 md:px-8 py-2 md:py-4 min-w-0 flex flex-col">
           {children}
         </main>
       </div>
