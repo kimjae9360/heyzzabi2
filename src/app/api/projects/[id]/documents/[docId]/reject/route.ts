@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 
 // approve API와 동일한 이유로 type→컬럼명 매핑을 사용한다 (동적 필드 선택으로 중복 제거)
 const FIELD = { proposal: "proposalStatus", reqSpec: "reqSpecStatus" } as const;
@@ -13,6 +14,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { docId } = await params;
     const { type, reason } = await request.json() as { type: string; reason: string };
 

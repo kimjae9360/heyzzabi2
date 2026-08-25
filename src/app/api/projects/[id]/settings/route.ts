@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseAgentConfig } from "@/lib/agentConfig";
+import { requirePM } from "@/lib/requireAuth";
 
 // 프로젝트 설정 탭 중 외부 연동(Slack/GitHub)과 에이전트 세부 설정 수정 라우트.
 // 이름/설명 수정은 프로젝트 기본 라우트([id]/route.ts)의 PATCH가 담당한다.
@@ -9,6 +10,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { slackWebhookUrl, githubOwner, githubRepo, agentConfig } = await request.json();
 
     // 값이 undefined면 Prisma가 해당 필드를 건드리지 않고 그대로 둔다.

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 
 // type("proposal"|"reqSpec") 값을 실제 Prisma 컬럼명으로 매핑하는 테이블.
 // 기획서/요구사항정의서의 승인 로직이 완전히 동일하므로, if/else 대신 이 매핑으로
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { docId } = await params;
     const { type } = await request.json() as { type: string };
 

@@ -23,5 +23,4 @@
 
 ## 참고 (이미 PROJECT_STATUS.md에 기록된 것들 — 여기서 중복 안 함)
 
-서버 사이드 RBAC 없음 · 비밀번호 평문 저장 · DEV 롤 토글 배포 전 제거 필요 · Slack/Git 실제
-연동 없음
+DEV 롤 토글 배포 전 제거 필요 · Slack/Git 실제 연동 없음

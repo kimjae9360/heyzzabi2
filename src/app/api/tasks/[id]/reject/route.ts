@@ -1,12 +1,16 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
+import { requirePM } from "@/lib/requireAuth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { id } = await params;
     const { reason } = await request.json();
 

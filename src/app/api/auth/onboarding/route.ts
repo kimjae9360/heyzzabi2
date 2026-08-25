@@ -1,23 +1,30 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/passwordHash";
+import { requireAuth } from "@/lib/requireAuth";
 
 // 최초 로그인 후 온보딩 처리: 임시 비밀번호를 사용자가 직접 정한 값으로 바꾸고 프로필 정보를 채운다.
 export async function POST(request: Request) {
   try {
-    const { email, password, name, department, phone, techStack, certifications, pastProjects } = await request.json();
+    const { session, error: authError } = await requireAuth();
+    if (authError) return authError;
 
-    if (!email || !password || !name) {
+    const { password, name, department, phone, techStack, certifications, pastProjects } = await request.json();
+
+    if (!password || !name) {
       return NextResponse.json(
-        { error: "필수 정보(이메일, 비밀번호, 이름)가 누락되었습니다." },
+        { error: "필수 정보(비밀번호, 이름)가 누락되었습니다." },
         { status: 400 }
       );
     }
 
-    // 온보딩 시점에는 아직 세션/id가 없고 로그인 때 받은 email만 알고 있으므로 email로 조회한다.
+    // 예전엔 클라이언트가 보낸 email로 대상을 찾았는데, 로그인 여부만 확인하고 email 자체는
+    // 검증하지 않아서 다른 사람 email을 넣어 그 계정의 비밀번호/프로필을 덮어쓸 수 있는
+    // 계정 탈취 경로였다(발견 즉시 수정) — 세션의 userId로만 대상을 찾도록 바꾼다.
     const user = await prisma.user.update({
-      where: { email },
+      where: { id: session!.userId },
       data: {
-        password, // Should be hashed in production
+        password: await hashPassword(password),
         name,
         department,
         phone,

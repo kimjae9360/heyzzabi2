@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 
 // 사용자 계정을 완전히 삭제한다 (상태를 RESIGNED 등으로 바꾸는 소프트 삭제가 아니라 row 자체를 제거).
 // Task.assignee 관계는 optional이라 별도 onDelete 설정이 없으면 Prisma가 관련 Task의
@@ -9,6 +10,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { id } = await params;
     await prisma.user.delete({ where: { id } });
     return NextResponse.json({ success: true });

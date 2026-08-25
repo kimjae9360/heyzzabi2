@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashPassword, verifyPassword, isHashed } from "@/lib/passwordHash";
+import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
 
 // 로그인 처리: 이메일/비밀번호를 검증하고, 성공 시 비밀번호를 제외한 사용자 정보를 반환한다.
 export async function POST(request: Request) {
@@ -10,8 +12,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
-    
-    
+
+
     let user = await prisma.user.findUnique({ where: { email } });
 
     // Hardcoded fallback for presentation accounts
@@ -21,7 +23,7 @@ export async function POST(request: Request) {
         user = await prisma.user.create({
           data: {
             email: "pm@heyzzabi.com",
-            password: "admin",
+            password: await hashPassword("admin"),
             name: "관리자 (PM)",
             role: "PM"
           }
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
         user = await prisma.user.create({
           data: {
             email: "newbie@heyzzabi.com",
-            password: "temp",
+            password: await hashPassword("temp"),
             name: "신규멤버 (MEMBER)",
             role: "EMPLOYEE"
           }
@@ -43,9 +45,14 @@ export async function POST(request: Request) {
       // 비밀번호로만 검증한다. 예전엔 pm/newbie 데모 계정에 한해 하드코딩된 비밀번호가 계정이
       // 존재해도 계속 통과됐는데, 그러면 비밀번호를 바꿔도 예전 값으로 로그인이 계속 되는
       // 인증 우회 버그였다(QA에서 발견) — 위 자동 시딩(계정이 아예 없을 때만)과는 별개.
-      // 비밀번호를 해시 없이 평문으로 직접 비교한다 (실제 서비스라면 bcrypt 등으로 해시 후 비교해야 함).
-      if (user.password !== password) {
+      // verifyPassword는 평문/해시 계정을 모두 지원한다 — 아직 해시로 마이그레이션 안 된
+      // 레거시 계정이면 로그인 성공 직후 바로 해시로 재저장한다(아래).
+      const ok = await verifyPassword(password, user.password);
+      if (!ok) {
         return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
+      }
+      if (!isHashed(user.password)) {
+        user = await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(password) } });
       }
     }
 
@@ -54,9 +61,21 @@ export async function POST(request: Request) {
     const { password: _, ...userWithoutPassword } = user;
 
     // Normalize DB role to client role: PM/ADMIN -> "PM", others -> "MEMBER"
-    const normalizedRole = user.role === "PM" || user.role === "ADMIN" ? "PM" : "MEMBER";
+    const isPM = user.role === "PM" || user.role === "ADMIN";
+    const normalizedRole = isPM ? "PM" : "MEMBER";
 
-    return NextResponse.json({ ...userWithoutPassword, role: normalizedRole });
+    const response = NextResponse.json({ ...userWithoutPassword, role: normalizedRole });
+    // 클라이언트(localStorage의 hz_session)는 UI 표시용일 뿐이고, 실제 권한 검증은 이 HttpOnly
+    // 쿠키를 서버가 읽어서 판단한다 — localStorage는 devtools에서 누구나 값을 바꿀 수 있지만
+    // 이 쿠키는 서명돼 있어 클라이언트가 role을 조작해도 서버 검증을 통과할 수 없다.
+    response.cookies.set(SESSION_COOKIE, createSessionToken(user.id, isPM ? "PM" : "EMPLOYEE"), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7일
+    });
+    return response;
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json({ error: "Server error." }, { status: 500 });

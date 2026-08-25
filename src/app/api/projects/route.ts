@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 
 // 새 프로젝트를 생성한다. AI가 초안으로 뽑아준 업무 목록(tasks)이 함께 넘어오면
 // 프로젝트 생성과 동시에 업무들도 한 번에 만들어준다.
 export async function POST(request: Request) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const data = await request.json();
     const { name, description, startDate, endDate, tasks } = data;
 

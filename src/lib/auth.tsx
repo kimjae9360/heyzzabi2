@@ -65,12 +65,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("hz_session");
+    // 서버가 실제 권한 판단에 쓰는 HttpOnly 세션 쿠키도 지운다 — 응답을 기다릴 필요는 없다
+    // (실패해도 로그아웃 자체는 진행돼야 하고, 어차피 곧 로그인 페이지로 이동한다).
+    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
     window.location.href = "/login";
   };
 
   // DEV ONLY — 그냥 role 라벨만 바꾸면 대시보드 등 개인화 화면이 여전히 PM 본인 id로 조회돼서
   // (PM은 업무를 배정받지 않는 역할이라) 항상 빈 화면만 보였다. 그래서 "일반유저"로 갈 땐 실제
   // 배정 업무가 있는 팀원 계정으로 세션 자체를 바꾸고, 돌아올 땐 원래 PM 계정을 복원한다.
+  // 주의: 이건 localStorage(hz_session)만 바꾸는 화면 미리보기용이다 — 실제 API 권한 검증은
+  // 로그인 시 서버가 심어준 HttpOnly 쿠키(src/lib/session.ts)의 role을 기준으로 하므로, 이
+  // 토글로 "일반유저"를 봐도 실제 로그인 계정이 PM이면 서버는 여전히 PM으로 취급한다(그 반대도
+  // 마찬가지). 진짜 다른 권한으로 API를 테스트하려면 해당 계정으로 다시 로그인해야 한다.
   const devToggleRole = async () => {
     if (!user) return;
 

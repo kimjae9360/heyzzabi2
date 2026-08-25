@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
 // 단일 사용자의 상세 프로필을 조회한다. password는 select에서 제외해 응답에 절대 포함하지 않는다.
 export async function GET(
@@ -25,16 +26,32 @@ export async function GET(
 }
 
 // 사용자 프로필(인사정보 포함) 부분 수정. 요청에 실제로 담긴 필드만 골라서 업데이트한다.
+// 이 라우트는 두 화면이 같이 쓴다 — profile/page.tsx(본인이 techStack/phone 등만 자율 수정)와
+// members/page.tsx(PM이 다른 직원의 role/status 등 인사정보까지 수정). 그래서 권한 규칙도 둘로
+// 나뉜다: 본인 프로필이면 로그인만 확인하고, 남의 프로필이거나 role/status 같은 인사정보 필드를
+// 건드리는 요청이면 PM이어야 한다(예전엔 이 구분 자체가 없어서 누구나 아무 사용자의 role까지
+// 직접 API 호출로 바꿀 수 있었다).
+const HR_ONLY_FIELDS = ["role", "name", "employeeNo", "position", "jobTitle", "status", "hireDate", "resignDate", "department"] as const;
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { session, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { id } = await params;
+    const body = await request.json();
     const {
       techStack, certifications, pastProjects, phone, department, role, name,
       employeeNo, position, jobTitle, status, hireDate, resignDate,
-    } = await request.json();
+    } = body;
+
+    const touchesHrFields = HR_ONLY_FIELDS.some((f) => body[f] !== undefined);
+    if ((session!.userId !== id || touchesHrFields) && session!.role !== "PM") {
+      return NextResponse.json({ error: "PM 권한이 필요합니다." }, { status: 403 });
+    }
 
     // 퇴사일은 두 경로로 채워진다: (1) 수정 모달에서 직접 날짜를 입력하면 그 값을 그대로 쓰고,
     // (2) 목록의 상태 드롭다운에서 곧바로 "퇴사"로 바꾸면(직접 입력값이 없으면) 오늘 날짜로 자동 기록한다.

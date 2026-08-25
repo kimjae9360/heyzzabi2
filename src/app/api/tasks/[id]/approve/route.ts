@@ -1,12 +1,16 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
+import { requirePM } from "@/lib/requireAuth";
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { id } = await params;
 
     // 배분 승인: PM이 이 담당자에게 업무를 배정하는 것을 승인 — 작업이 이제 시작됨(FR-05-018)

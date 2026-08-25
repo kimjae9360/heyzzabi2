@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/passwordHash";
+import { requirePM } from "@/lib/requireAuth";
 
 // 전체 직원 목록 조회 (관리/멤버 관리 화면용). select로 password를 명시적으로 제외해 응답에 노출되지 않게 한다.
 export async function GET() {
@@ -35,6 +37,9 @@ export async function GET() {
 // 관리자가 새 직원 계정을 생성한다 (아이디만 입력받고 이메일은 서버가 조립).
 export async function POST(request: Request) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { username, name, department, position, jobTitle, employeeNo, hireDate } = await request.json();
 
     if (!username) {
@@ -54,8 +59,8 @@ export async function POST(request: Request) {
         email,
         name: name || username,
         // 초기 비밀번호는 고정값("1111")으로 발급하고, mustChangePassword로 최초 로그인 시
-        // 반드시 온보딩(비밀번호 변경)을 거치도록 강제한다.
-        password: "1111",
+        // 반드시 온보딩(비밀번호 변경)을 거치도록 강제한다. DB에는 해시로만 저장한다.
+        password: await hashPassword("1111"),
         role: "EMPLOYEE",
         status: "ACTIVE",
         mustChangePassword: true,
