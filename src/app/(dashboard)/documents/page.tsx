@@ -137,6 +137,11 @@ export default function DocumentsPage() {
     // stage가 "taskAssignment"라는 것 자체가 이미 reqSpecStatus === APPROVED라는 뜻이라
     // (stageOf 정의 참고) 그 경우도 reqSpecStatus 기준으로 판단하면 항상 DRAFT가 아니게 된다.
     const status = stage === "proposal" ? d.proposalStatus : d.reqSpecStatus;
+    const content = stage === "proposal" ? d.proposalContent : d.reqSpecContent;
+    // 아직 AI가 아무 내용도 생성하지 않은 새 문서는 "남이 검토 요청 전인 초안"이 아니라
+    // PM 본인이 방금 만들어서 이제 막 생성 버튼을 눌러야 하는 문서다 — content 유무로
+    // 구분하지 않으면 PM이 새 문서를 만들자마자 목록에서 사라져버린다(실제 버그 보고됨).
+    if (!content) return true;
     return status !== "DRAFT";
   };
   const documents: ProjectDocument[] = allDocuments.filter(isVisibleToViewer);

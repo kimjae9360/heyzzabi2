@@ -120,6 +120,46 @@ export function NewDocumentModal({
     return base || `새 문서 ${new Date().toLocaleTimeString()}`;
   };
 
+  // 본문에서 회의 일시를 뽑아낸다 — "일자/날짜/회의일시/작성일" 같은 키워드가 있는 줄을 우선
+  // 찾고, 없으면 본문 전체에서 처음 나오는 날짜 형식을 그대로 쓴다. YYYY-MM-DD, YYYY.MM.DD,
+  // "YYYY년 M월 D일" 형태를 지원한다(SAMPLE_NOTES와 실제 회의록에서 흔한 표기 둘 다 커버).
+  const extractMeetingDate = (text: string): string | null => {
+    const keywordLine = text.split("\n").find(l => /(일자|날짜|회의일시|작성일)/.test(l));
+    const searchIn = keywordLine ?? text;
+    const isoMatch = searchIn.match(/(\d{4})[.\-](\d{1,2})[.\-](\d{1,2})/);
+    if (isoMatch) {
+      const [, y, m, d] = isoMatch;
+      if (Number(m) >= 1 && Number(m) <= 12 && Number(d) >= 1 && Number(d) <= 31) {
+        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      }
+    }
+    const korMatch = searchIn.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+    if (korMatch) {
+      const [, y, m, d] = korMatch;
+      return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    return null;
+  };
+
+  // 회의록 본문이 바뀔 때마다(파일 첨부든 직접 입력이든) 회의 일시/참석자를 자동으로 채운다.
+  // 이미 사용자가 채운 값은 절대 덮어쓰지 않는다 — meetingDate/attendees를 의도적으로 의존성
+  // 배열에서 빼서, 이 값들이 바뀌는 것 자체(예: 사용자가 직접 고르거나 지움) 때문에 이 효과가
+  // 다시 도는 걸 막는다(안 그러면 사용자가 지운 참석자가 다시 자동으로 붙는 등 사용자 입력과
+  // 충돌한다). 타이핑 중 우연히 날짜처럼 보이는 숫자에 매번 반응하지 않도록 살짝 debounce.
+  useEffect(() => {
+    if (!content.trim()) return;
+    const timer = setTimeout(() => {
+      setMeetingDate(prev => prev || extractMeetingDate(content) || "");
+      if (memberNames.length > 0) {
+        const found = memberNames.filter(name => content.includes(name));
+        if (found.length > 0) {
+          setAttendees(prev => Array.from(new Set([...prev, ...found])));
+        }
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [content, memberNames]);
+
   const handleLoadSample = () => {
     const randomIndex = Math.floor(Math.random() * SAMPLE_NOTES.length);
     const sample = SAMPLE_NOTES[randomIndex];
