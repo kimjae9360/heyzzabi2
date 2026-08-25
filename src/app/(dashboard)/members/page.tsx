@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -69,6 +70,12 @@ export default function MembersPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
+  // 설정 드롭다운을 클릭한 버튼 기준으로 계산한 화면 좌표(포탈용) — 표 마지막 줄에서 버튼을
+  // 누르면, 표 카드에 걸린 overflow-hidden에 가려서 메뉴 아래쪽이 잘려 안 보이던 문제가
+  // 있었다(사용자가 실제로 보고 발견함). document.body에 포탈로 띄우고 fixed 좌표로 직접
+  // 위치를 잡아서 그 overflow-hidden 밖으로 꺼낸다 — 아래 공간이 부족하면 위로 펼친다.
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -92,12 +99,15 @@ export default function MembersPage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside — 메뉴 본문이 이제 포탈로 document.body 밑에
+  // 따로 떠 있어서(위 menuPos 주석 참고), 트리거 버튼(menuRef)뿐 아니라 포탈된 메뉴 자체
+  // (portalMenuRef) 안을 클릭했을 때도 "바깥 클릭"으로 잘못 판정해 닫히지 않게 같이 확인한다.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
-      }
+      const target = e.target as Node;
+      if (menuRef.current?.contains(target)) return;
+      if (portalMenuRef.current?.contains(target)) return;
+      setOpenMenuId(null);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -318,7 +328,7 @@ const handlePasswordReset = async (id: string, name: string) => {
             <thead className="bg-black/10 dark:bg-white/5 text-muted-foreground">
               <tr>
                 <th className="px-6 py-4 font-semibold">직원</th>
-                <th className="px-6 py-4 font-semibold">부서 / 직급 / 직무</th>
+                <th className="px-6 py-4 font-semibold whitespace-nowrap">부서 / 직급 /<br />직무</th>
                 <th className="px-6 py-4 font-semibold">기술 스택</th>
                 <th className="px-6 py-4 font-semibold whitespace-nowrap">입사일 /<br />퇴사일</th>
                 <th className="px-6 py-4 font-semibold">역할</th>
@@ -395,7 +405,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                         </select>
                       ) : (
                         <span className={cn(
-                          "px-2.5 py-1 rounded-full text-xs font-semibold",
+                          "px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap",
                           member.role === "PM" ? "bg-emerald-500/10 text-emerald-400" : "bg-black/10 dark:bg-white/10 text-muted-foreground"
                         )}>
                           {member.role === "PM" ? "PM" : "일반 멤버"}
@@ -420,7 +430,7 @@ const handlePasswordReset = async (id: string, name: string) => {
                         </select>
                       ) : (
                         <span className={cn(
-                          "px-2.5 py-1 rounded-full text-xs font-semibold",
+                          "px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap",
                           STATUS_META[member.status].badgeClass
                         )}>
                           {STATUS_META[member.status].label}
@@ -434,10 +444,10 @@ const handlePasswordReset = async (id: string, name: string) => {
                         <span className="text-xs text-muted-foreground">-</span>
                       ) : (
                         <span className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap",
                           (activeTaskCounts[member.id] ?? 0) > 0 ? "bg-primary/10 text-primary" : "bg-black/5 dark:bg-white/5 text-muted-foreground"
                         )}>
-                          <Briefcase className="w-3 h-3" /> {activeTaskCounts[member.id] ?? 0}건
+                          <Briefcase className="w-3 h-3 shrink-0" /> {activeTaskCounts[member.id] ?? 0}건
                         </span>
                       )}
                     </td>
@@ -447,7 +457,21 @@ const handlePasswordReset = async (id: string, name: string) => {
                       <td className="px-6 py-4 text-center relative">
                         <div className="relative inline-block" ref={openMenuId === member.id ? menuRef : undefined}>
                           <button
-                            onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
+                            onClick={(e) => {
+                              if (openMenuId === member.id) {
+                                setOpenMenuId(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const menuHeight = 176; // 메뉴 항목 3개 + 구분선 기준 대략치
+                              const spaceBelow = window.innerHeight - rect.bottom;
+                              setMenuPos(
+                                spaceBelow >= menuHeight
+                                  ? { top: rect.bottom + 8, right: window.innerWidth - rect.right }
+                                  : { bottom: window.innerHeight - rect.top + 8, right: window.innerWidth - rect.right }
+                              );
+                              setOpenMenuId(member.id);
+                            }}
                             disabled={processingId === member.id}
                             className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
                           >
@@ -456,8 +480,11 @@ const handlePasswordReset = async (id: string, name: string) => {
                               : <MoreVertical className="w-4 h-4" />}
                           </button>
 
-                          {openMenuId === member.id && (
-                            <div className="absolute right-0 top-8 z-50 w-48 glass border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                          {openMenuId === member.id && menuPos && createPortal(
+                            <div
+                              ref={portalMenuRef}
+                              style={{ position: "fixed", top: menuPos.top, bottom: menuPos.bottom, right: menuPos.right }}
+                              className="z-50 w-48 glass border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
                               <button
                                 onClick={() => handlePasswordReset(member.id, member.name)}
                                 className="w-full flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left"
@@ -490,7 +517,8 @@ const handlePasswordReset = async (id: string, name: string) => {
                                 <Trash2 className="w-4 h-4" />
                                 계정 삭제
                               </button>
-                            </div>
+                            </div>,
+                            document.body
                           )}
                         </div>
                       </td>
