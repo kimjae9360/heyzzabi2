@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
   // 통째로 실패한다(PDF의 DOMMatrix 폴리필용으로 새로 끌어온 의존성) — pdf-parse와 마찬가지로
   // 번들링 대상에서 빼고 node_modules에서 그대로 require하게 해야 한다.
   serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
+  // pdfjs-dist(pdf-parse 내부 의존성)는 워커를 못 띄우면 워커 스크립트 파일 자체를 같은 스레드에서
+  // import해서 대체 실행하는데("fake worker"), 그 워커 .mjs 파일은 정적 require/import로 참조되지
+  // 않고 경로 문자열로만 열리기 때문에 Vercel의 자동 파일 트레이싱이 이 파일을 서버리스 번들에서
+  // 누락시킨다 — "Cannot find module '.../pdf.worker.mjs'" 프로덕션 에러(실제 발생)의 원인.
+  // 해당 API 라우트 한정으로 pdfjs-dist 전체를 강제로 함께 포함시켜 해결한다.
+  outputFileTracingIncludes: {
+    "/api/documents/parse-file": ["./node_modules/pdfjs-dist/**/*"],
+  },
 };
 
 export default nextConfig;
