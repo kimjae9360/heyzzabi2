@@ -1,8 +1,11 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Save, AlignLeft, BarChart2 } from "lucide-react";
+import { X, Loader2, Save, AlignLeft, BarChart2, CalendarClock, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+
+const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export function TaskDetailModal({
   task,
@@ -13,13 +16,20 @@ export function TaskDetailModal({
   members: any[];
   onClose: () => void;
 }) {
+  const { user } = useAuth();
+  const isPM = user?.role === "PM";
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description || "");
   const [progress, setProgress] = useState(task.progress || 0);
   const [assigneeId, setAssigneeId] = useState(task.assigneeId || "");
   const [difficulty, setDifficulty] = useState(task.difficulty || "보통");
   const [status, setStatus] = useState(task.status);
-  
+  // FR: 실제 진행 상황이 AI가 처음 잡은 예상 소요시간/일정과 어긋나도 고칠 방법이 없었다 —
+  // 일정 조율은 다른 화면(프로젝트 WBS 뷰)과 동일하게 PM 권한으로 취급한다.
+  const [wbsStart, setWbsStart] = useState(toDateInput(task.wbsStart));
+  const [wbsEnd, setWbsEnd] = useState(toDateInput(task.wbsEnd));
+  const [estimatedHours, setEstimatedHours] = useState(task.estimatedHours ?? "");
+
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -36,6 +46,11 @@ export function TaskDetailModal({
           assigneeId,
           difficulty,
           status,
+          ...(isPM ? {
+            wbsStart: wbsStart || null,
+            wbsEnd: wbsEnd || null,
+            estimatedHours: estimatedHours === "" ? null : Number(estimatedHours),
+          } : {}),
         }),
       });
 
@@ -100,6 +115,49 @@ export function TaskDetailModal({
                 <option value="보통">보통</option>
                 <option value="높음">높음</option>
               </select>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <CalendarClock className="w-4 h-4" /> 일정 · 예상 소요시간
+              {!isPM && <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground/70"><Lock className="w-3 h-3" /> 재계획은 PM만 할 수 있습니다</span>}
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">시작일</label>
+                <input
+                  type="date"
+                  value={wbsStart}
+                  onChange={(e) => setWbsStart(e.target.value)}
+                  readOnly={!isPM}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+                  disabled={!isPM}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">종료일</label>
+                <input
+                  type="date"
+                  value={wbsEnd}
+                  onChange={(e) => setWbsEnd(e.target.value)}
+                  readOnly={!isPM}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+                  disabled={!isPM}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">예상 소요시간(h)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  value={estimatedHours}
+                  onChange={(e) => setEstimatedHours(e.target.value === "" ? "" : Number(e.target.value))}
+                  disabled={!isPM}
+                  className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+                />
+              </div>
             </div>
           </div>
 

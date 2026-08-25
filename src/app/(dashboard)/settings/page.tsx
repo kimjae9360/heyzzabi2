@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, MessageSquare, GitBranch, Sparkles, FolderKanban } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, FolderKanban } from "lucide-react";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { parseAgentConfig, DEFAULT_AGENT_CONFIG, type AgentConfig } from "@/lib/agentConfig";
 
 type Project = {
   id: string;
-  name: string;
-  description: string | null;
-  slackWebhookUrl: string | null;
-  githubOwner: string | null;
-  githubRepo: string | null;
   agentConfig: string | null;
 };
 
@@ -24,18 +18,7 @@ export default function SettingsPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [slackWebhookUrl, setSlackWebhookUrl] = useState("");
-  const [githubOwner, setGithubOwner] = useState("");
-  const [githubRepo, setGithubRepo] = useState("");
   const [agentConfig, setAgentConfig] = useState<AgentConfig>(DEFAULT_AGENT_CONFIG);
-
-  const [savingBasic, setSavingBasic] = useState(false);
-  const [savedBasic, setSavedBasic] = useState(false);
-  const [savingIntegrations, setSavingIntegrations] = useState(false);
-  const [savedIntegrations, setSavedIntegrations] = useState(false);
   const [savingAgents, setSavingAgents] = useState(false);
   const [savedAgents, setSavedAgents] = useState(false);
 
@@ -52,11 +35,6 @@ export default function SettingsPage() {
         if (detail.success) {
           const p: Project = detail.data;
           setProject(p);
-          setName(p.name);
-          setDescription(p.description || "");
-          setSlackWebhookUrl(p.slackWebhookUrl || "");
-          setGithubOwner(p.githubOwner || "");
-          setGithubRepo(p.githubRepo || "");
           setAgentConfig(parseAgentConfig(p.agentConfig));
         }
       } finally {
@@ -65,36 +43,6 @@ export default function SettingsPage() {
     };
     load();
   }, []);
-
-  const saveBasic = async () => {
-    if (!project || !name.trim()) return;
-    setSavingBasic(true); setSavedBasic(false);
-    try {
-      const res = await fetch(`/api/projects/${project.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), description }),
-      });
-      if (res.ok) { setSavedBasic(true); setTimeout(() => setSavedBasic(false), 2000); }
-    } finally {
-      setSavingBasic(false);
-    }
-  };
-
-  const saveIntegrations = async () => {
-    if (!project) return;
-    setSavingIntegrations(true); setSavedIntegrations(false);
-    try {
-      const res = await fetch(`/api/projects/${project.id}/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slackWebhookUrl, githubOwner, githubRepo }),
-      });
-      if (res.ok) { setSavedIntegrations(true); setTimeout(() => setSavedIntegrations(false), 2000); }
-    } finally {
-      setSavingIntegrations(false);
-    }
-  };
 
   const saveAgents = async () => {
     if (!project) return;
@@ -135,11 +83,6 @@ export default function SettingsPage() {
     );
   }
 
-  const inputClass = (editable: boolean) => cn(
-    "w-full px-4 py-2 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-sm",
-    editable && "focus:outline-none focus:ring-2 focus:ring-primary/40"
-  );
-
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
@@ -147,73 +90,8 @@ export default function SettingsPage() {
           <SettingsIcon className="w-5 h-5 text-primary" />
           <h1 className="text-3xl font-black text-foreground tracking-tight">설정</h1>
         </div>
-        <p className="text-muted-foreground">이 앱은 단일 프로젝트 전제로 동작해 여기서 바로 프로젝트 설정을 다룹니다.</p>
+        <p className="text-muted-foreground">문서생성 파이프라인 AI 에이전트를 세부 조정합니다.</p>
       </div>
-
-      {/* 기본 정보 */}
-      <section className="glass rounded-2xl border border-white/5 p-6 space-y-4">
-        <h2 className="text-lg font-bold">기본 정보</h2>
-        <div>
-          <label className="text-sm font-semibold mb-1 block text-muted-foreground">프로젝트명</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} readOnly={!isPM} className={inputClass(isPM)} />
-        </div>
-        <div>
-          <label className="text-sm font-semibold mb-1 block text-muted-foreground">설명</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)} readOnly={!isPM} rows={3} className={inputClass(isPM)} />
-        </div>
-        {isPM ? (
-          <button onClick={saveBasic} disabled={savingBasic || !name.trim()} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50">
-            {savingBasic ? <Loader2 className="w-4 h-4 animate-spin" /> : savedBasic ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {savedBasic ? "저장됨" : "저장하기"}
-          </button>
-        ) : (
-          <p className="text-xs text-muted-foreground">* 설정 수정은 PM만 가능합니다.</p>
-        )}
-      </section>
-
-      {/* 외부 연동 */}
-      <section className="glass rounded-2xl border border-white/5 p-6 space-y-4">
-        <div>
-          <h2 className="text-lg font-bold">외부 연동</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            연동 정보를 저장해두는 자리입니다 — Slack 알림 발송이나 GitHub PR 상태 동기화 같은 실제 연동 동작은
-            아직 구현되어 있지 않습니다(업무관리의 Git 상태는 지금은 수동 선택입니다).
-          </p>
-        </div>
-        <div>
-          <label className="text-sm font-semibold mb-1 flex items-center gap-1.5 text-muted-foreground">
-            <MessageSquare className="w-3.5 h-3.5" /> Slack Webhook URL
-          </label>
-          <input
-            type="text"
-            placeholder="https://hooks.slack.com/services/..."
-            value={slackWebhookUrl}
-            onChange={e => setSlackWebhookUrl(e.target.value)}
-            readOnly={!isPM}
-            className={inputClass(isPM)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-semibold mb-1 flex items-center gap-1.5 text-muted-foreground">
-              <GitBranch className="w-3.5 h-3.5" /> GitHub Owner
-            </label>
-            <input type="text" placeholder="org-or-user" value={githubOwner} onChange={e => setGithubOwner(e.target.value)} readOnly={!isPM} className={inputClass(isPM)} />
-          </div>
-          <div>
-            <label className="text-sm font-semibold mb-1 block text-muted-foreground">GitHub Repo</label>
-            <input type="text" placeholder="repo-name" value={githubRepo} onChange={e => setGithubRepo(e.target.value)} readOnly={!isPM} className={inputClass(isPM)} />
-          </div>
-        </div>
-        {isPM ? (
-          <button onClick={saveIntegrations} disabled={savingIntegrations} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50">
-            {savingIntegrations ? <Loader2 className="w-4 h-4 animate-spin" /> : savedIntegrations ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {savedIntegrations ? "저장됨" : "저장하기"}
-          </button>
-        ) : (
-          <p className="text-xs text-muted-foreground">* 설정 수정은 PM만 가능합니다.</p>
-        )}
-      </section>
 
       {/* 에이전트 설정 */}
       <section className="glass rounded-2xl border border-white/5 p-6 space-y-5">
