@@ -6,6 +6,7 @@ import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, Arro
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { KanbanBoard } from "@/components/layout/KanbanBoard";
+import { TaskDetailModal } from "@/components/projects/TaskDetailModal";
 
 type Task = {
   id: string;
@@ -61,6 +62,8 @@ export default function TasksPage() {
   // 다른 화면들과 같은 방식으로 가장 최근(첫 번째) 프로젝트를 기본값으로 쓴다.
   const [members, setMembers] = useState<Member[]>([]);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  // 리스트/WBS 뷰 행을 눌러도 아무 반응이 없었다 — 칸반 카드와 동일하게 상세 모달을 연다.
+  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -267,12 +270,16 @@ export default function TasksPage() {
                     pagedTasks.map(task => {
                       const statusInfo = STATUSES.find(s => s.id === task.status) || STATUSES[0];
                       return (
-                        <tr key={task.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors group relative">
+                        <tr
+                          key={task.id}
+                          onClick={() => setSelectedTaskForDetail(task)}
+                          className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors group relative cursor-pointer"
+                        >
                           <td className="px-6 py-4">
                             <div className="font-bold mb-1">{task.title}</div>
                             {task.description && <div className="text-xs text-muted-foreground line-clamp-1 max-w-md">{task.description}</div>}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
                             {task.status === "PENDING_APPROVAL" ? (
                               <span className={cn("inline-block text-xs font-bold px-2.5 py-1.5 rounded-lg", statusInfo.bg, statusInfo.color)}>
                                 {statusInfo.label} · PM 승인 대기
@@ -324,9 +331,17 @@ export default function TasksPage() {
             </div>
           ) : (
             // 업무보드(WBS) 뷰 (FR-07-001~003): 전체 진행상황 요약 + Git 상태 배지가 포함된 통합 표
-            <WbsBoardView tasks={filteredTasks} onGitStatusChange={handleGitStatusChange} />
+            <WbsBoardView tasks={filteredTasks} onGitStatusChange={handleGitStatusChange} onRowClick={setSelectedTaskForDetail} />
           )}
         </>
+      )}
+
+      {selectedTaskForDetail && (
+        <TaskDetailModal
+          task={selectedTaskForDetail}
+          members={members}
+          onClose={() => { setSelectedTaskForDetail(null); fetchTasks(); }}
+        />
       )}
     </div>
   );
@@ -337,7 +352,7 @@ export default function TasksPage() {
  * Git 상태 배지"를 담당한다. 상단에는 상태별 카운트/전체 진행률 요약 바를,
  * 아래에는 업무별 Git 상태(FR-08 연동 전까지는 수동 표시)를 포함한 표를 그린다.
  */
-function WbsBoardView({ tasks, onGitStatusChange }: { tasks: Task[]; onGitStatusChange: (taskId: string, gitStatus: string) => void }) {
+function WbsBoardView({ tasks, onGitStatusChange, onRowClick }: { tasks: Task[]; onGitStatusChange: (taskId: string, gitStatus: string) => void; onRowClick: (task: Task) => void }) {
   // 상태별 집계 — 진행률 요약 바에 사용 (페이지네이션과 무관하게 항상 전체 tasks 기준)
   const total = tasks.length;
   const counts = STATUSES.reduce((acc, s) => {
@@ -395,7 +410,11 @@ function WbsBoardView({ tasks, onGitStatusChange }: { tasks: Task[]; onGitStatus
                 const gitInfo = GIT_STATUSES[task.gitStatus] ?? GIT_STATUSES.NONE;
                 const GitIcon = gitInfo.icon;
                 return (
-                  <tr key={task.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                  <tr
+                    key={task.id}
+                    onClick={() => onRowClick(task)}
+                    className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                  >
                     <td className="px-6 py-4">
                       <div className="font-bold">{task.title}</div>
                       {task.estimatedHours != null && (
@@ -416,7 +435,7 @@ function WbsBoardView({ tasks, onGitStatusChange }: { tasks: Task[]; onGitStatus
                         <span className="text-xs font-semibold w-8 text-right">{task.progress}%</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
                       {/* FR-08 Git 연동 전까지는 팀원이 직접 상태를 표시 */}
                       <select
                         value={task.gitStatus}

@@ -121,8 +121,13 @@ export function NotificationBell() {
       >
         <Bell className={cn("w-5 h-5", hasUnread && !isOpen && "fill-orange-500/20")} />
         {hasUnread && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-black px-0.5 ring-2 ring-background">
-            {unreadCount > 9 ? "9+" : unreadCount}
+          // 은은한 깜빡임 요청 — 배지 전체가 아니라 뒤쪽 링만 은은하게 퍼지며 사라지는(ping)
+          // 효과를 줘서 눈에는 띄지만 숫자가 읽기 힘들게 계속 깜빡이진 않게 했다
+          <span className="absolute -top-0.5 -right-0.5 flex">
+            <span className="absolute inset-0 rounded-full bg-red-400 opacity-75 animate-ping" />
+            <span className="relative min-w-[16px] h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-black px-0.5 ring-2 ring-background">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
           </span>
         )}
       </button>
