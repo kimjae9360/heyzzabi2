@@ -7,6 +7,7 @@ import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, Folder
 import { cn } from "@/lib/utils";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { parseAgentConfig, DEFAULT_AGENT_CONFIG, type AgentConfig } from "@/lib/agentConfig";
+import { TERMS_ARTICLES, TERMS_EFFECTIVE_DATE, PRIVACY_SECTIONS, PRIVACY_EFFECTIVE_DATE } from "@/lib/legalContent";
 
 const SUPPORT_EMAIL = "kimjae9360@gmail.com";
 
@@ -36,6 +37,9 @@ export default function SettingsPage() {
   const [savingAgents, setSavingAgents] = useState(false);
   const [savedAgents, setSavedAgents] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  // 에이전트 설정은 PM 전용(일반유저에게는 섹션 자체를 안 보여줌)이라 collapse 상태는 PM한테만 의미가 있다.
+  const [agentSectionOpen, setAgentSectionOpen] = useState(true);
+  const [openLegal, setOpenLegal] = useState<"terms" | "privacy" | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -105,76 +109,83 @@ export default function SettingsPage() {
           <SettingsIcon className="w-5 h-5 text-primary" />
           <h1 className="text-3xl font-black text-foreground tracking-tight">설정</h1>
         </div>
-        <p className="text-muted-foreground">문서생성 파이프라인 AI 에이전트를 세부 조정합니다.</p>
+        <p className="text-muted-foreground">
+          {isPM ? "AI 에이전트 설정, 자주 묻는 질문, 법적 고지를 확인합니다." : "자주 묻는 질문과 법적 고지를 확인합니다."}
+        </p>
       </div>
 
-      {/* 에이전트 설정 */}
-      <section className="glass rounded-2xl border border-white/5 p-6 space-y-5">
-        <div>
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" /> 에이전트 설정
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            문서생성 파이프라인의 AI 에이전트 3종을 세부 조정합니다. 값은 실제 생성 API 호출에 그대로 반영됩니다.
-            &ldquo;원본에 없는 내용은 지어내지 않는다&rdquo;는 환각 방지 원칙을 지키기 위해 다양성(temperature)은
-            0~0.3 범위로만 조정할 수 있습니다.
-          </p>
-        </div>
-
-        <AgentTemperatureCard
-          agent="proposal"
-          title="기획서 생성 에이전트"
-          description="회의록/메모를 바탕으로 프로젝트 기획서 초안을 작성합니다."
-          temperature={agentConfig.proposal.temperature}
-          onChange={t => setAgentConfig(c => ({ ...c, proposal: { temperature: t } }))}
-          editable={isPM}
-        />
-        <AgentTemperatureCard
-          agent="reqSpec"
-          title="요구사항정의서 생성 에이전트"
-          description="승인된 기획서를 바탕으로 개발 가능한 수준의 요구사항정의서를 작성합니다."
-          temperature={agentConfig.reqSpec.temperature}
-          onChange={t => setAgentConfig(c => ({ ...c, reqSpec: { temperature: t } }))}
-          editable={isPM}
-        />
-        <AgentTemperatureCard
-          agent="taskAssign"
-          title="업무 배분 에이전트"
-          description="승인된 요구사항정의서를 실행 가능한 업무 단위로 쪼갭니다."
-          temperature={agentConfig.taskAssign.temperature}
-          onChange={t => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, temperature: t } }))}
-          editable={isPM}
-        >
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
-            <label className="text-xs font-semibold text-muted-foreground shrink-0">한 번에 추출할 업무 개수</label>
-            <input
-              type="number" min={1} max={agentConfig.taskAssign.maxTasks} step={1}
-              value={agentConfig.taskAssign.minTasks}
-              onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, minTasks: Math.max(1, Number(e.target.value) || 1) } }))}
-              disabled={!isPM}
-              className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
-            />
-            <span className="text-xs text-muted-foreground">~</span>
-            <input
-              type="number" min={agentConfig.taskAssign.minTasks} max={15} step={1}
-              value={agentConfig.taskAssign.maxTasks}
-              onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, maxTasks: Math.min(15, Number(e.target.value) || c.taskAssign.minTasks) } }))}
-              disabled={!isPM}
-              className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
-            />
-            <span className="text-xs text-muted-foreground">개 (기본 3~7)</span>
-          </div>
-        </AgentTemperatureCard>
-
-        {isPM ? (
-          <button onClick={saveAgents} disabled={savingAgents} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50">
-            {savingAgents ? <Loader2 className="w-4 h-4 animate-spin" /> : savedAgents ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {savedAgents ? "저장됨" : "저장하기"}
+      {/* 에이전트 설정 — 일반유저는 조정할 일이 없어 섹션 자체를 안 보여준다(PM 전용) */}
+      {isPM && (
+        <section className="glass rounded-2xl border border-white/5 overflow-hidden">
+          <button
+            onClick={() => setAgentSectionOpen(v => !v)}
+            className="w-full flex items-center justify-between gap-3 p-6 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          >
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" /> 에이전트 설정
+            </h2>
+            <ChevronDown className={cn("w-5 h-5 text-muted-foreground shrink-0 transition-transform", agentSectionOpen && "rotate-180")} />
           </button>
-        ) : (
-          <p className="text-xs text-muted-foreground">* 설정 수정은 PM만 가능합니다.</p>
-        )}
-      </section>
+
+          {agentSectionOpen && (
+            <div className="px-6 pb-6 space-y-5">
+              <p className="text-xs text-muted-foreground -mt-2">
+                문서생성 파이프라인의 AI 에이전트 3종을 세부 조정합니다. 값은 실제 생성 API 호출에 그대로 반영됩니다.
+                &ldquo;원본에 없는 내용은 지어내지 않는다&rdquo;는 환각 방지 원칙을 지키기 위해 다양성(temperature)은
+                0~0.3 범위로만 조정할 수 있습니다.
+              </p>
+
+              <AgentTemperatureCard
+                agent="proposal"
+                title="기획서 생성 에이전트"
+                description="회의록/메모를 바탕으로 프로젝트 기획서 초안을 작성합니다."
+                temperature={agentConfig.proposal.temperature}
+                onChange={t => setAgentConfig(c => ({ ...c, proposal: { temperature: t } }))}
+                editable={isPM}
+              />
+              <AgentTemperatureCard
+                agent="reqSpec"
+                title="요구사항정의서 생성 에이전트"
+                description="승인된 기획서를 바탕으로 개발 가능한 수준의 요구사항정의서를 작성합니다."
+                temperature={agentConfig.reqSpec.temperature}
+                onChange={t => setAgentConfig(c => ({ ...c, reqSpec: { temperature: t } }))}
+                editable={isPM}
+              />
+              <AgentTemperatureCard
+                agent="taskAssign"
+                title="업무 배분 에이전트"
+                description="승인된 요구사항정의서를 실행 가능한 업무 단위로 쪼갭니다."
+                temperature={agentConfig.taskAssign.temperature}
+                onChange={t => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, temperature: t } }))}
+                editable={isPM}
+              >
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-white/5">
+                  <label className="text-xs font-semibold text-muted-foreground shrink-0">한 번에 추출할 업무 개수</label>
+                  <input
+                    type="number" min={1} max={agentConfig.taskAssign.maxTasks} step={1}
+                    value={agentConfig.taskAssign.minTasks}
+                    onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, minTasks: Math.max(1, Number(e.target.value) || 1) } }))}
+                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                  />
+                  <span className="text-xs text-muted-foreground">~</span>
+                  <input
+                    type="number" min={agentConfig.taskAssign.minTasks} max={15} step={1}
+                    value={agentConfig.taskAssign.maxTasks}
+                    onChange={e => setAgentConfig(c => ({ ...c, taskAssign: { ...c.taskAssign, maxTasks: Math.min(15, Number(e.target.value) || c.taskAssign.minTasks) } }))}
+                    className="w-16 px-2 py-1 bg-black/5 dark:bg-white/5 border border-white/10 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                  />
+                  <span className="text-xs text-muted-foreground">개 (기본 3~7)</span>
+                </div>
+              </AgentTemperatureCard>
+
+              <button onClick={saveAgents} disabled={savingAgents} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50">
+                {savingAgents ? <Loader2 className="w-4 h-4 animate-spin" /> : savedAgents ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {savedAgents ? "저장됨" : "저장하기"}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* 고객지원 */}
       <section className="glass rounded-2xl border border-white/5 p-6 space-y-4">
@@ -210,16 +221,56 @@ export default function SettingsPage() {
         </a>
       </section>
 
-      {/* 법적 고지 */}
+      {/* 법적 고지 — 이용약관/개인정보처리방침도 FAQ와 동일하게 눌러서 펼쳐본다.
+          전체 내용은 /settings/legalContent.ts를 공유해서 /settings/terms, /settings/privacy
+          단독 페이지(직접 링크 공유용)와 문구가 어긋나지 않게 한다. */}
       <section className="glass rounded-2xl border border-white/5 p-6 space-y-3">
         <h2 className="text-lg font-bold">법적 고지</h2>
-        <div className="flex flex-col gap-1">
-          <Link href="/settings/terms" className="flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm font-semibold">
-            <FileText className="w-4 h-4 text-muted-foreground" /> 이용약관
-          </Link>
-          <Link href="/settings/privacy" className="flex items-center gap-2 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-sm font-semibold">
-            <ShieldCheck className="w-4 h-4 text-muted-foreground" /> 개인정보처리방침
-          </Link>
+        <div className="border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5">
+          <div>
+            <button
+              onClick={() => setOpenLegal(v => (v === "terms" ? null : "terms"))}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <FileText className="w-4 h-4 text-muted-foreground" /> 이용약관
+              </span>
+              <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", openLegal === "terms" && "rotate-180")} />
+            </button>
+            {openLegal === "terms" && (
+              <div className="px-4 pb-4 space-y-4">
+                <p className="text-xs text-muted-foreground">시행일: {TERMS_EFFECTIVE_DATE}</p>
+                {TERMS_ARTICLES.map(a => (
+                  <div key={a.title}>
+                    <h3 className="font-bold text-xs mb-1">{a.title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">{a.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <button
+              onClick={() => setOpenLegal(v => (v === "privacy" ? null : "privacy"))}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <ShieldCheck className="w-4 h-4 text-muted-foreground" /> 개인정보처리방침
+              </span>
+              <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", openLegal === "privacy" && "rotate-180")} />
+            </button>
+            {openLegal === "privacy" && (
+              <div className="px-4 pb-4 space-y-4">
+                <p className="text-xs text-muted-foreground">시행일: {PRIVACY_EFFECTIVE_DATE}</p>
+                {PRIVACY_SECTIONS.map(s => (
+                  <div key={s.title}>
+                    <h3 className="font-bold text-xs mb-1">{s.title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">{s.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
     </div>
