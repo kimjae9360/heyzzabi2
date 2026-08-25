@@ -38,9 +38,9 @@ const relativeTime = (dateStr: string) => {
   return `${Math.floor(hrs / 24)}일 전`;
 };
 
-// 대시보드 헤더 우측(사용자 지정 위치)의 알림 종 — 배분승인대기 발생/승인/반려, 문서 검토요청
-// 같은, 당사자가 화면을 직접 열어보기 전엔 알 방법이 없던 이벤트를 보여준다.
-// 서버 세션이 없는 앱이라 다른 라우트(/api/tasks?assigneeId=)와 동일하게 user.id를 쿼리로 넘긴다.
+// 배분승인대기 발생/승인/반려, 문서 검토요청 같은, 당사자가 화면을 직접 열어보기 전엔 알
+// 방법이 없던 이벤트를 보여준다. 서버 세션이 없는 앱이라 다른 라우트(/api/tasks?assigneeId=)와
+// 동일하게 user.id를 쿼리로 넘긴다. 모든 탭 상단 우측(공용 헤더 바)에 고정 배치된다.
 export function NotificationBell() {
   const { user } = useAuth();
   const router = useRouter();
@@ -76,6 +76,7 @@ export function NotificationBell() {
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const hasUnread = unreadCount > 0;
 
   const markAllRead = async () => {
     if (!user || unreadCount === 0) return;
@@ -91,8 +92,14 @@ export function NotificationBell() {
     }
   };
 
+  // 알림 하나를 클릭하면 그 자리에서 바로 읽음 처리한다 — 예전엔 "모두 읽음"으로만 지울 수
+  // 있어서, 하나만 확인해도 나머지 안 읽은 것들과 뒤섞여 안읽음 표시가 계속 남아있었다.
   const handleItemClick = (n: NotificationItem) => {
     setIsOpen(false);
+    if (!n.read) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      fetch(`/api/notifications/${n.id}`, { method: "PATCH" }).catch((e) => console.error(e));
+    }
     if (n.link) router.push(n.link);
   };
 
@@ -104,13 +111,17 @@ export function NotificationBell() {
         onClick={() => setIsOpen((v) => !v)}
         className={cn(
           "relative p-2.5 rounded-xl transition-colors",
-          isOpen ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+          isOpen
+            ? "bg-primary/10 text-primary"
+            : hasUnread
+            ? "text-orange-500 hover:bg-orange-500/10"
+            : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
         )}
         aria-label="알림"
       >
-        <Bell className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-black px-0.5">
+        <Bell className={cn("w-5 h-5", hasUnread && !isOpen && "fill-orange-500/20")} />
+        {hasUnread && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-white text-[9px] flex items-center justify-center font-black px-0.5 ring-2 ring-background">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -122,9 +133,9 @@ export function NotificationBell() {
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-muted-foreground" />
               <span className="font-bold text-sm">알림</span>
-              {unreadCount > 0 && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadCount}개 미확인</span>}
+              {hasUnread && <span className="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{unreadCount}개 미확인</span>}
             </div>
-            <button onClick={markAllRead} disabled={unreadCount === 0} className="text-[11px] font-bold text-primary hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+            <button onClick={markAllRead} disabled={!hasUnread} className="text-[11px] font-bold text-primary hover:text-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               모두 읽음
             </button>
           </div>
@@ -138,14 +149,14 @@ export function NotificationBell() {
                   <button
                     key={n.id}
                     onClick={() => handleItemClick(n)}
-                    className={cn("w-full flex items-start gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left", !n.read && "bg-primary/5")}
+                    className={cn("w-full flex items-start gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left", !n.read && "bg-orange-500/5")}
                   >
                     <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", TYPE_COLOR[n.type] ?? "text-muted-foreground")} />
                     <div className="flex-1 min-w-0">
                       <p className={cn("text-sm leading-snug", !n.read && "font-semibold")}>{n.message}</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">{relativeTime(n.createdAt)}</p>
                     </div>
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1.5" />}
+                    {!n.read && <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0 mt-1.5" />}
                   </button>
                 );
               })
