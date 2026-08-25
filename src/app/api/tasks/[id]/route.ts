@@ -17,7 +17,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Extract updateable fields
-    const { title, description, status, difficulty, progress, wbsStart, wbsEnd, assigneeId, gitStatus, estimatedHours, assignmentReason } = body;
+    const { title, description, status, progress, wbsStart, wbsEnd, assigneeId, gitStatus, estimatedHours, assignmentReason } = body;
 
     if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
       return NextResponse.json({ success: false, error: "잘못된 status 값입니다." }, { status: 400 });
@@ -50,7 +50,6 @@ export async function PATCH(
       if (status === "DONE") updateData.completedAt = new Date();
       else if (status === "BACKLOG") updateData.completedAt = null;
     }
-    if (difficulty !== undefined) updateData.difficulty = difficulty;
     if (progress !== undefined) updateData.progress = Number(progress);
     if (wbsStart !== undefined) updateData.wbsStart = wbsStart ? new Date(wbsStart) : null;
     if (wbsEnd !== undefined) updateData.wbsEnd = wbsEnd ? new Date(wbsEnd) : null;

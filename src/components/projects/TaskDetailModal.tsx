@@ -8,6 +8,11 @@ import { useAuth } from "@/lib/auth";
 
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
+// 다른 화면(업무관리 등)과 같은 한글 라벨로 통일 — 이 모달만 status 원문(IN_PROGRESS 등)을 그대로 보여주고 있었다.
+const STATUS_LABEL: Record<string, string> = {
+  BACKLOG: "대기", PENDING_APPROVAL: "배분승인대기", IN_PROGRESS: "진행 중", DONE: "완료", CANCELLED: "취소됨",
+};
+
 export function TaskDetailModal({
   task,
   members,
@@ -23,7 +28,6 @@ export function TaskDetailModal({
   const [description, setDescription] = useState(task.description || "");
   const [progress, setProgress] = useState(task.progress || 0);
   const [assigneeId, setAssigneeId] = useState(task.assigneeId || "");
-  const [difficulty, setDifficulty] = useState(task.difficulty || "보통");
   const [status, setStatus] = useState(task.status);
   // FR: 실제 진행 상황이 AI가 처음 잡은 예상 소요시간/일정과 어긋나도 고칠 방법이 없었다 —
   // 일정 조율은 다른 화면(프로젝트 WBS 뷰)과 동일하게 PM 권한으로 취급한다.
@@ -45,7 +49,6 @@ export function TaskDetailModal({
           description,
           progress,
           assigneeId,
-          difficulty,
           status,
           ...(isPM ? {
             wbsStart: wbsStart || null,
@@ -80,7 +83,7 @@ export function TaskDetailModal({
               placeholder="업무 제목"
             />
             <div className="text-sm text-muted-foreground mt-1">
-              업무가 속한 상태: <span className="font-semibold">{status}</span>
+              업무가 속한 상태: <span className="font-semibold">{STATUS_LABEL[status] ?? status}</span>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors shrink-0">
@@ -90,33 +93,18 @@ export function TaskDetailModal({
 
         <div className="p-6 flex-1 overflow-y-auto space-y-8">
           
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-muted-foreground">담당자</label>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                <option value="">담당자 없음</option>
-                {members.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-muted-foreground">난이도</label>
-              <select
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                <option value="낮음">낮음</option>
-                <option value="보통">보통</option>
-                <option value="높음">높음</option>
-              </select>
-            </div>
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-muted-foreground">담당자</label>
+            <select
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              className="w-full bg-black/5 dark:bg-white/5 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            >
+              <option value="">담당자 없음</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-3">

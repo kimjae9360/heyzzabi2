@@ -4,7 +4,7 @@ import OpenAI from "openai";
 
 const toList = (s: string | null) => (s ? s.split(",").map(v => v.trim()).filter(Boolean) : []);
 
-// FR-05-016 / FR-05-017: 기술스택 · 현재 업무량 · 유사 업무 경험 · 난이도를 근거로 담당자를 추천하고,
+// FR-05-016 / FR-05-017: 기술스택 · 현재 업무량 · 유사 업무 경험을 근거로 담당자를 추천하고,
 // 추천마다 기술 적합도 / 업무 여유도 / 유사 업무 경험 근거를 함께 제공한다.
 // 문서 단위로 한 번에 배정하는 assign-tasks와 달리 이 라우트는 업무 1건만 대상으로 한다 —
 // 칸반 보드에서 담당자를 드래그로 배정할 때 쓰이며, 단건이라 배치 컨텍스트가 없으므로
@@ -84,7 +84,7 @@ export async function POST(
         {
           role: "user",
           content: JSON.stringify({
-            task: { title: task.title, description: task.description, difficulty: task.difficulty },
+            task: { title: task.title, description: task.description },
             candidates: candidates.map(({ userId, ...rest }) => rest), // UUID는 굳이 노출하지 않음 — index로만 참조
           }),
         },

@@ -89,7 +89,7 @@ export async function POST(
         {
           role: "user",
           content: JSON.stringify({
-            tasks: tasks.map((t, taskIndex) => ({ taskIndex, title: t.title, description: t.description, difficulty: t.difficulty })),
+            tasks: tasks.map((t, taskIndex) => ({ taskIndex, title: t.title, description: t.description })),
             candidates: candidates.map(({ userId, ...rest }) => rest), // UUID는 굳이 노출하지 않음 — index로만 참조
           }),
         },
@@ -157,7 +157,7 @@ export async function POST(
       if (!a || !candidate) {
         // AI가 이 업무에 대해 추천을 못 준 경우(모델 응답 누락 등) — 배정 없이 그대로 반환하고
         // PM이 업무분배 탭에서 수동으로 채워 넣도록 한다.
-        return { taskId: task.id, title: task.title, difficulty: task.difficulty, difficultyReason: task.difficultyReason, estimatedHours: task.estimatedHours, suggestedAssigneeId: null, fitScore: null, techFit: null, workloadFit: null, experienceFit: null, suggestedWbsStart: null, suggestedWbsEnd: null };
+        return { taskId: task.id, title: task.title, estimatedHours: task.estimatedHours, suggestedAssigneeId: null, fitScore: null, techFit: null, workloadFit: null, experienceFit: null, suggestedWbsStart: null, suggestedWbsEnd: null };
       }
       // 예상 소요시간을 8시간=1영업일 기준으로 올림해서 필요한 영업일수를 구한다(예: 10시간 -> 2일).
       const days = Math.max(1, Math.ceil((task.estimatedHours ?? 8) / 8));
@@ -179,8 +179,6 @@ export async function POST(
       return {
         taskId: task.id,
         title: task.title,
-        difficulty: task.difficulty,
-        difficultyReason: task.difficultyReason,
         estimatedHours: task.estimatedHours,
         suggestedAssigneeId: candidate.userId,
         suggestedAssigneeName: candidate.name,

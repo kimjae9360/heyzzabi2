@@ -37,13 +37,13 @@ export async function GET(req: Request) {
   }
 }
 
-// 새 업무를 최소 정보로 생성한다. description/assigneeId/difficulty/wbsStart/wbsEnd는
+// 새 업무를 최소 정보로 생성한다. description/assigneeId/wbsStart/wbsEnd는
 // 요청 바디에서 구조분해만 될 뿐 실제로는 저장되지 않는다 — 상세 정보는
-// 생성 후 tasks/[id] PATCH로 채워 넣는 흐름(난이도는 일단 "보통"으로 고정, 진행률 0에서 시작).
+// 생성 후 tasks/[id] PATCH로 채워 넣는 흐름(진행률 0에서 시작).
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, status, projectId, description, assigneeId, difficulty, wbsStart, wbsEnd } = body;
+    const { title, status, projectId, description, assigneeId, wbsStart, wbsEnd } = body;
 
     if (!title || !status || !projectId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -54,7 +54,6 @@ export async function POST(req: Request) {
         title,
         status,
         projectId,
-        difficulty: "보통",
         progress: 0,
       }
     });

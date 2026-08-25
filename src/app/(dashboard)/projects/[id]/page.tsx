@@ -14,7 +14,7 @@ import { KanbanBoard } from "@/components/layout/KanbanBoard";
 type User = { id: string; name: string; email: string; role: string };
 type Task = {
   id: string; title: string; description: string | null;
-  status: string; difficulty: string; progress: number;
+  status: string; progress: number;
   wbsStart: string | null; wbsEnd: string | null;
   assigneeId: string | null;
   assignee: { id: string; name: string; email: string } | null;

@@ -580,8 +580,8 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
                 <p className="font-semibold">{task.assignee?.name ?? "미배정"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">난이도 · 시간</p>
-                <p className="font-semibold">{task.difficulty} · {task.estimatedHours ?? "-"}h</p>
+                <p className="text-xs text-muted-foreground mb-1">예상 소요시간</p>
+                <p className="font-semibold">{task.estimatedHours ?? "-"}h</p>
               </div>
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> 일정</p>
@@ -590,13 +590,6 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
                 </p>
               </div>
             </div>
-
-            {task.difficultyReason && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">난이도 산정 근거</p>
-                <p className="text-muted-foreground">{task.difficultyReason}</p>
-              </div>
-            )}
 
             {reason && (
               <div className="border border-border rounded-xl p-3 space-y-1.5">

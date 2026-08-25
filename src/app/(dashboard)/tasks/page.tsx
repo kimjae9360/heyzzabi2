@@ -15,7 +15,6 @@ type Task = {
   title: string;
   description: string | null;
   status: string;
-  difficulty: string;
   estimatedHours: number | null;
   gitStatus: string;
   wbsStart: string | null;

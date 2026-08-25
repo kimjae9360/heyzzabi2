@@ -30,7 +30,6 @@ export async function POST(request: Request) {
           create: (tasks || []).map((t: any) => ({
             title: t.title,
             description: t.description,
-            difficulty: t.difficulty || "MEDIUM",
             status: "BACKLOG",
           })),
         },

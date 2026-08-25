@@ -69,7 +69,7 @@ function AssigneeDropdown({ task, members, onAssign, readOnly }: { task: any, me
   );
 }
 
-function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
+function SortableTask({ task, members, onAssign, onClick, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
   // 칸반 카드를 드래그해 상태를 바꾸는 것도 "내 업무" 아니면 PM만 — 예전엔 아무 카드나 아무나 옮길 수 있었다.
   const canManage = isPM || task.assigneeId === currentUserId;
   const {
@@ -103,7 +103,6 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-1.5">
-          {getDifficultyBadge(task.difficulty)}
           {isTaskOverdue(task) && (
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500">
               <AlertTriangle className="w-3 h-3" /> 지연
@@ -167,7 +166,7 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
   );
 }
 
-function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, onCardClick, projectId, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
+function KanbanColumn({ column, tasks, members, onAssign, onCardClick, projectId, isPM, onApprove, onReject, onRequestAssignment, processing, currentUserId }: any) {
   const { setNodeRef } = useSortable({
     id: column.id,
     data: { type: "Column", column },
@@ -255,7 +254,6 @@ function KanbanColumn({ column, tasks, members, onAssign, getDifficultyBadge, on
               task={task}
               members={members}
               onAssign={onAssign}
-              getDifficultyBadge={getDifficultyBadge}
               onClick={onCardClick}
               isPM={isPM}
               onApprove={onApprove}
@@ -287,14 +285,6 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
   // FR-05-016/017: AI 담당자 추천 (기술 적합도 · 업무 여유도 · 유사 업무 경험 근거 포함)
   const [aiRecs, setAiRecs] = useState<any[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-
-  const getDifficultyBadge = (difficulty: string) => {
-    switch (difficulty) {
-      case "높음": return <span className="bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full text-[10px] font-bold">어려움</span>;
-      case "낮음": return <span className="bg-emerald-500/20 text-emerald-500 px-2 py-0.5 rounded-full text-[10px] font-bold">쉬움</span>;
-      default: return <span className="bg-orange-500/20 text-orange-500 px-2 py-0.5 rounded-full text-[10px] font-bold">보통</span>;
-    }
-  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -443,7 +433,6 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
                   tasks={tasks.filter((t) => t.status === col.id)}
                   members={members}
                   onAssign={handleAssign}
-                  getDifficultyBadge={getDifficultyBadge}
                   onCardClick={(t: any) => setSelectedTaskForDetail(t)}
                   isPM={isPM}
                   onApprove={handleApprove}
@@ -457,7 +446,7 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
           </div>
         </div>
         <DragOverlay>
-          {activeTask ? <SortableTask task={activeTask} members={members} onAssign={handleAssign} getDifficultyBadge={getDifficultyBadge} onClick={() => {}} isPM={isPM} processing={processing} currentUserId={user?.id} /> : null}
+          {activeTask ? <SortableTask task={activeTask} members={members} onAssign={handleAssign} onClick={() => {}} isPM={isPM} processing={processing} currentUserId={user?.id} /> : null}
         </DragOverlay>
       </DndContext>
 

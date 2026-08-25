@@ -9,8 +9,6 @@ type Task = {
   id: string;
   title: string;
   description: string | null;
-  difficulty: string;
-  difficultyReason: string | null;
   estimatedHours: number | null;
   status: string;
   assigneeId: string | null;
@@ -25,8 +23,6 @@ type Member = { id: string; name: string };
 type Suggestion = {
   taskId: string;
   title: string;
-  difficulty: string;
-  difficultyReason: string | null;
   estimatedHours: number | null;
   suggestedAssigneeId: string | null;
   fitScore: number | null;
@@ -41,8 +37,6 @@ type Suggestion = {
 type DraftRow = {
   taskId: string;
   title: string;
-  difficulty: string;
-  difficultyReason: string | null;
   estimatedHours: number | null;
   assigneeId: string;
   fitScore: number | null;
@@ -56,6 +50,12 @@ type DraftRow = {
 type GanttItem = { id: string; title: string; assigneeName: string; wbsStart: string; wbsEnd: string };
 
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
+
+// 다른 화면(업무관리 등)은 전부 한글 라벨을 쓰는데 이 표만 status 원문(IN_PROGRESS 등)을
+// 그대로 보여주고 있었다 — 같은 라벨로 통일한다.
+const STATUS_LABEL: Record<string, string> = {
+  BACKLOG: "대기", PENDING_APPROVAL: "배분승인대기", IN_PROGRESS: "진행 중", DONE: "완료", CANCELLED: "취소됨",
+};
 
 // assignmentReason은 검증 없는 자유 텍스트 컬럼이라, 이 화면이 쓴 게 아닌 값이 들어있을 가능성을 배제할 수 없다
 const parseReason = (raw: string | null) => {
@@ -119,8 +119,6 @@ export function TaskAssignmentPanel({
         (data.suggestions as Suggestion[]).map(s => ({
           taskId: s.taskId,
           title: s.title,
-          difficulty: s.difficulty,
-          difficultyReason: s.difficultyReason,
           estimatedHours: s.estimatedHours,
           assigneeId: s.suggestedAssigneeId ?? "",
           fitScore: s.fitScore,
@@ -217,14 +215,11 @@ export function TaskAssignmentPanel({
                         {d.techFit && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== d.taskId && "-rotate-90")} />}
                         <span className="min-w-0">
                           {/* 제목이 길면 배지까지 같이 줄바꿈되며 밀려서 보기 나빴다 — 제목은 한 줄로 자르고,
-                              난이도/시간 배지(요구사항정의서에서 업무를 추출할 때 AI가 함께 산정한 값)는 아래로 뺀다 */}
+                              시간 배지(요구사항정의서에서 업무를 추출할 때 AI가 함께 산정한 값)는 아래로 뺀다 */}
                           <span className="block truncate">{d.title}</span>
                           <span className="flex items-center gap-1.5 mt-0.5">
-                            <span
-                              title={d.difficultyReason ? `AI 산정 근거: ${d.difficultyReason}` : "산정 근거가 없습니다."}
-                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
-                            >
-                              {d.difficulty} · {d.estimatedHours ?? "-"}h
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold">
+                              {d.estimatedHours ?? "-"}h
                             </span>
                             {d.techFit && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{d.techFit}</span>}
                           </span>
@@ -369,15 +364,12 @@ function AssignedList({
                       >
                         {reason && <ChevronDown className={cn("w-3.5 h-3.5 transition-transform shrink-0 mt-0.5", expandedReason !== t.id && "-rotate-90")} />}
                         <span className="min-w-0">
-                          {/* 제목은 한 줄로 자르고, 난이도/시간 배지는 아래 줄로 — 안 그러면 제목이 길 때
+                          {/* 제목은 한 줄로 자르고, 시간 배지는 아래 줄로 — 안 그러면 제목이 길 때
                               배지까지 같이 줄바꿈되며 아래로 밀려 보였다 */}
                           <span className="block truncate">{t.title}</span>
                           <span className="flex items-center gap-1.5 mt-0.5">
-                            <span
-                              title={t.difficultyReason ? `AI 산정 근거: ${t.difficultyReason}` : "산정 근거가 없습니다."}
-                              className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold cursor-help"
-                            >
-                              {t.difficulty} · {t.estimatedHours ?? "-"}h
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold">
+                              {t.estimatedHours ?? "-"}h
                             </span>
                             {reason?.techFit ? (
                               <span className="text-xs font-normal text-muted-foreground line-clamp-1">{reason.techFit}</span>
@@ -414,12 +406,17 @@ function AssignedList({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {/* 날짜 범위를 한 줄에 붙여 쓰면 길이에 따라 줄바꿈 지점이 들쭉날쭉해서 보기 나빴다
+                          — 시작일/종료일을 항상 두 줄로 고정해서 통일한다 */}
                       {t.wbsStart && t.wbsEnd ? (
-                        <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {new Date(t.wbsStart).toLocaleDateString()} ~ {new Date(t.wbsEnd).toLocaleDateString()}</span>
+                        <span className="flex flex-col gap-0.5">
+                          <span className="flex items-center gap-1"><CalendarIcon className="w-3 h-3 shrink-0" /> {new Date(t.wbsStart).toLocaleDateString()}</span>
+                          <span className="pl-4">~ {new Date(t.wbsEnd).toLocaleDateString()}</span>
+                        </span>
                       ) : "-"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{t.status}</span>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">{STATUS_LABEL[t.status] ?? t.status}</span>
                     </td>
                   </tr>
                   {expandedReason === t.id && reason && (
