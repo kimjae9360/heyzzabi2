@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
-import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge, X } from "lucide-react";
+import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { KanbanBoard } from "@/components/layout/KanbanBoard";
 import { TaskDetailModal } from "@/components/projects/TaskDetailModal";
+import { isTaskOverdue } from "@/lib/taskOverdue";
 
 type Task = {
   id: string;
@@ -337,8 +338,11 @@ export default function TasksPage() {
                               <span className="text-muted-foreground text-[13px]">미배정</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-[13px] text-muted-foreground">
-                            {task.wbsEnd ? new Date(task.wbsEnd).toLocaleDateString() : "-"}
+                          <td className={cn("px-6 py-4 text-[13px]", isTaskOverdue(task) ? "text-red-500 font-semibold" : "text-muted-foreground")}>
+                            <div className="flex items-center gap-1">
+                              {isTaskOverdue(task) && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                              {task.wbsEnd ? new Date(task.wbsEnd).toLocaleDateString() : "-"}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
@@ -443,7 +447,14 @@ function WbsBoardView({ tasks, onGitStatusChange, onRowClick }: { tasks: Task[];
                     className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                   >
                     <td className="px-6 py-4">
-                      <div className="font-bold">{task.title}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold">{task.title}</span>
+                        {isTaskOverdue(task) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500 shrink-0">
+                            <AlertTriangle className="w-3 h-3" /> 지연
+                          </span>
+                        )}
+                      </div>
                       {task.estimatedHours != null && (
                         <div className="text-[11px] text-muted-foreground mt-0.5">예상 소요 {task.estimatedHours}시간</div>
                       )}

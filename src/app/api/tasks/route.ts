@@ -1,10 +1,15 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkAndNotifyOverdueTasks } from "@/lib/overdueCheck";
 
 // 전체 업무 목록 조회 — assigneeId/status 쿼리 파라미터로 선택적으로 필터링한다
 // (예: "내 업무만 보기", 칸반보드의 특정 상태 컬럼만 보기).
 export async function GET(req: Request) {
   try {
+    // 백그라운드 스케줄러가 없어 지연 업무 감지를 이 요청에 얹어서 돈다 — 응답을 늦추면 안 되므로
+    // 기다리지 않고(fire-and-forget) 실패해도 무시한다(목록 조회 자체를 막을 이유는 아니다).
+    checkAndNotifyOverdueTasks().catch(err => console.error("Overdue check failed:", err));
+
     const { searchParams } = new URL(req.url);
     const assigneeId = searchParams.get('assigneeId');
 

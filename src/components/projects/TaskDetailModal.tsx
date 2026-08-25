@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Save, AlignLeft, BarChart2, CalendarClock, Lock } from "lucide-react";
+import { X, Loader2, Save, AlignLeft, BarChart2, CalendarClock, Lock, AlertTriangle } from "lucide-react";
+import { isTaskOverdue } from "@/lib/taskOverdue";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
@@ -122,6 +123,11 @@ export function TaskDetailModal({
             <label className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <CalendarClock className="w-4 h-4" /> 일정 · 예상 소요시간
               {!isPM && <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground/70"><Lock className="w-3 h-3" /> 재계획은 PM만 할 수 있습니다</span>}
+              {isTaskOverdue(task) && (
+                <span className="flex items-center gap-1 text-[11px] font-bold text-red-500 ml-auto">
+                  <AlertTriangle className="w-3.5 h-3.5" /> 마감일이 지났습니다
+                </span>
+              )}
             </label>
             <div className="grid grid-cols-3 gap-3">
               <div>

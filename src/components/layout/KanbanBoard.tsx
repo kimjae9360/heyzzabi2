@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MoreHorizontal, Plus, CheckCircle2, XCircle, UserPlus, Loader2, X, MessageSquare, Sparkles, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Plus, CheckCircle2, XCircle, UserPlus, Loader2, X, MessageSquare, Sparkles, ExternalLink, AlertTriangle } from "lucide-react";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { cn } from "@/lib/utils";
+import { isTaskOverdue } from "@/lib/taskOverdue";
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -101,7 +102,14 @@ function SortableTask({ task, members, onAssign, getDifficultyBadge, onClick, is
       )}
     >
       <div className="flex justify-between items-start mb-2">
-        {getDifficultyBadge(task.difficulty)}
+        <div className="flex items-center gap-1.5">
+          {getDifficultyBadge(task.difficulty)}
+          {isTaskOverdue(task) && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500">
+              <AlertTriangle className="w-3 h-3" /> 지연
+            </span>
+          )}
+        </div>
         <button className="text-transparent group-hover:text-muted-foreground hover:!text-foreground">
           <MoreHorizontal className="w-4 h-4" />
         </button>

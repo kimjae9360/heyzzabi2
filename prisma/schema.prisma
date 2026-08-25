@@ -100,6 +100,7 @@ model Task {
   assignee     User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
   completedAt  DateTime?
   rejectReason String?
+  overdueNotifiedAt DateTime? // 마감일(wbsEnd) 경과 알림을 이미 보냈는지 — 매 조회마다 재알림하지 않도록 한 번 보내면 기록
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 }
