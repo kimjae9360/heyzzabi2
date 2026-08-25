@@ -31,7 +31,7 @@ const STATUS_META: Record<string, { label: string; className: string; icon: any 
 type ActivityItem = {
   // "agent-*" kinds는 별도 이벤트 로그 테이블이 없어, 현재 문서/업무 상태 스냅샷에서
   // "AI 에이전트가 생성/실행한 흔적"(생성된 콘텐츠·sourceDocumentId 존재 여부)을 역추적해 재구성한다.
-  kind: "document-proposal" | "document-reqspec" | "task" | "agent-proposal" | "agent-reqspec" | "agent-task";
+  kind: "document-proposal" | "document-reqspec" | "task" | "agent-proposal" | "agent-reqspec" | "agent-task" | "agent-recommend";
   id: string;
   title: string;
   subtitle: string;
@@ -43,15 +43,20 @@ type ActivityItem = {
   docId?: string;
   docType?: "proposal" | "reqSpec";
   taskId?: string;
+  // agent-recommend 전용 — AssigneeRecommendation.id로 project.assigneeRecommendations에서
+  // 그 시점 후보 목록(candidateData)을 다시 찾는다. 이건 역추적이 아니라 실제 저장된 이력이다.
+  recommendationId?: string;
 };
 
-const AGENT_KINDS: ActivityItem["kind"][] = ["agent-proposal", "agent-reqspec", "agent-task"];
+const AGENT_KINDS: ActivityItem["kind"][] = ["agent-proposal", "agent-reqspec", "agent-task", "agent-recommend"];
 
-// 리스트에서 로봇 아이콘만 봐서는 3개 에이전트 중 무엇인지 구분이 안 된다는 피드백 —
+// 리스트에서 로봇 아이콘만 봐서는 에이전트 종류 구분이 안 된다는 피드백 —
 // 종류별로 아이콘 색을 다르게 칠하고(빠른 스캔용), 뱃지 텍스트도 함께 보여준다(확정용).
-// AgentBadge.tsx의 색 배정과 반드시 맞춰야 한다.
+// AgentBadge.tsx의 색 배정과 반드시 맞춰야 한다. agent-recommend는 "업무 배분" 에이전트가
+// 담당자를 추천하는 단계라 taskAssign과 같은 색으로 묶는다(업무 자동생성과는 다른 단계지만
+// 같은 에이전트 범주).
 const agentOfKind = (kind: ActivityItem["kind"]): AgentKind | null =>
-  kind === "agent-proposal" ? "proposal" : kind === "agent-reqspec" ? "reqSpec" : kind === "agent-task" ? "taskAssign" : null;
+  kind === "agent-proposal" ? "proposal" : kind === "agent-reqspec" ? "reqSpec" : (kind === "agent-task" || kind === "agent-recommend") ? "taskAssign" : null;
 
 const AGENT_ICON_CLASS: Record<AgentKind, string> = {
   proposal: "bg-blue-500/10 text-blue-500",
@@ -174,6 +179,23 @@ export default function HistoryPage() {
           docType: "reqSpec",
         });
       }
+    }
+
+    // 에이전트(담당자 추천)가 실행된 이력 — 위 항목들과 달리 상태 스냅샷에서 역추적한 게 아니라
+    // AssigneeRecommendation 테이블에 그 시점 후보 전체가 실제로 저장돼 있다(확정 여부 무관).
+    for (const rec of project.assigneeRecommendations ?? []) {
+      const relatedTask = (project.tasks ?? []).find((t: any) => t.id === rec.taskId);
+      items.push({
+        kind: "agent-recommend",
+        id: `rec-${rec.id}`,
+        title: relatedTask?.title ?? "(삭제된 업무)",
+        subtitle: "담당자 추천 실행",
+        status: relatedTask?.status ?? "BACKLOG",
+        rejectReason: null,
+        updatedAt: rec.createdAt,
+        taskId: rec.taskId,
+        recommendationId: rec.id,
+      });
     }
 
     return items
@@ -442,6 +464,69 @@ function HistoryDetailModal({ item, project, onClose }: { item: ActivityItem; pr
               )}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // 담당자 추천 이력 — 다른 agent-* 항목과 달리 상태 스냅샷 역추적이 아니라 그 시점 AI가
+  // 제시한 후보 전체(확정 여부 무관)가 AssigneeRecommendation에 실제로 저장돼 있다.
+  if (item.kind === "agent-recommend") {
+    const rec = (project?.assigneeRecommendations ?? []).find((r: any) => r.id === item.recommendationId);
+    let candidates: Array<{ userId?: string; name?: string; fitScore?: number; techFit?: string; workloadFit?: string; experienceFit?: string }> = [];
+    try { candidates = rec?.candidateData ? JSON.parse(rec.candidateData) : []; } catch {}
+    const relatedTask = (project?.tasks ?? []).find((t: any) => t.id === item.taskId);
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="bg-background border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-bold">{item.title}</h3>
+                <AgentBadge agent="taskAssign" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                담당자 추천 실행{rec ? ` · ${new Date(rec.createdAt).toLocaleString("ko-KR")}` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {relatedTask && (
+                <Link href="/tasks" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors">
+                  업무관리에서 열기 <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              )}
+              <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-3 text-sm">
+            <p className="text-xs text-muted-foreground">
+              이 시점에 AI가 제시한 후보 {candidates.length}명입니다 — 실제로 배정에 반영됐는지와 무관하게 그대로 기록된 이력입니다.
+            </p>
+            {candidates.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-xs">저장된 후보 정보가 없습니다.</div>
+            ) : (
+              candidates
+                .slice()
+                .sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0))
+                .map((c, i) => (
+                  <div key={i} className="border border-white/10 rounded-xl p-3 space-y-1.5">
+                    <p className="text-xs font-semibold flex items-center gap-1.5">
+                      <UserIcon className="w-3.5 h-3.5 text-primary" /> {c.name ?? "이름 없음"} (적합도 {c.fitScore}점)
+                      {relatedTask?.assigneeId && relatedTask.assigneeId === c.userId && (
+                        <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-500">현재 담당자</span>
+                      )}
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-1 pl-4 list-disc">
+                      <li>기술 적합도: {c.techFit ?? "-"}</li>
+                      <li>업무 여유도: {c.workloadFit ?? "-"}</li>
+                      <li>유사 경험: {c.experienceFit ?? "-"}</li>
+                    </ul>
+                  </div>
+                ))
+            )}
+          </div>
         </div>
       </div>
     );

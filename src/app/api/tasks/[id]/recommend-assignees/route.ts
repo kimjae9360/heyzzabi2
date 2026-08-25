@@ -103,6 +103,15 @@ export async function POST(
         return { userId: c.userId, name: c.name, currentActiveTasks: c.currentActiveTasks, fitScore: r.fitScore, techFit: r.techFit, workloadFit: r.workloadFit, experienceFit: r.experienceFit };
       });
 
+    // PM이 이 추천을 실제로 채택했는지와 무관하게, 이 시점에 AI가 제시한 후보 전체를 이력으로
+    // 남긴다 — Task.assignmentReason은 "확정된" 근거만 남기 때문에 채택 안 된 후보는 여기 없으면 사라진다.
+    // 로그 저장 실패가 추천 기능 자체를 막을 이유는 없으므로 응답과 별개로 처리하고 실패해도 무시한다.
+    if (recommendations.length > 0) {
+      prisma.assigneeRecommendation.create({
+        data: { taskId: id, projectId: task.projectId, candidateData: JSON.stringify(recommendations) },
+      }).catch(err => console.error("Recommendation log save failed:", err));
+    }
+
     return NextResponse.json({ recommendations });
   } catch (error: any) {
     console.error("Assignee recommendation error:", error);

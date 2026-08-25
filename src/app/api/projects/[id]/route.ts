@@ -23,6 +23,9 @@ export async function GET(
         documents: {
           orderBy: { createdAt: "desc" }
         },
+        assigneeRecommendations: {
+          orderBy: { createdAt: "desc" }
+        },
       }
     });
 

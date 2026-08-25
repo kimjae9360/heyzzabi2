@@ -65,6 +65,19 @@ model Project {
   tasks       Task[]
   documents   ProjectDocument[]
   researchReports ResearchReport[]
+  assigneeRecommendations AssigneeRecommendation[]
+}
+
+// FR-05-016/017 담당자 추천 이력 — Task.assignmentReason은 "최종 확정된" 근거만 담고 있어서
+// AI가 그 시점에 실제로 제시했던 다른 후보들(확정 안 된 것 포함)은 남지 않는다. recommend-assignees
+// (단건)/assign-tasks(배치) 두 경로 모두, 확정 여부와 무관하게 매 추천 시점의 스냅샷을 그대로 남긴다.
+model AssigneeRecommendation {
+  id            String   @id @default(uuid())
+  taskId        String   // sourceDocumentId와 같은 이유로 FK 관계 없이 문자열로만 연결(참고용 기록)
+  candidateData String   // JSON: 그 시점 AI가 반환한 후보 목록(userId, name, fitScore, techFit, workloadFit, experienceFit)
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 }
 
 model Task {

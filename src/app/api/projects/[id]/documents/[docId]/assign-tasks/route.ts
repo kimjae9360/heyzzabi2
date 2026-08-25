@@ -193,6 +193,22 @@ export async function POST(
       };
     });
 
+    // recommend-assignees(단건)와 같은 이유로 배치 추천도 확정 여부와 무관하게 이력을 남긴다.
+    // 이 경로는 업무마다 후보 1명씩만 추천하는 구조라 candidateData도 그 1명만 담는다.
+    const logRows = suggestions
+      .filter(s => s.suggestedAssigneeId)
+      .map(s => ({
+        taskId: s.taskId,
+        projectId,
+        candidateData: JSON.stringify([{
+          userId: s.suggestedAssigneeId, name: s.suggestedAssigneeName,
+          fitScore: s.fitScore, techFit: s.techFit, workloadFit: s.workloadFit, experienceFit: s.experienceFit,
+        }]),
+      }));
+    if (logRows.length > 0) {
+      prisma.assigneeRecommendation.createMany({ data: logRows }).catch(err => console.error("Recommendation log save failed:", err));
+    }
+
     return NextResponse.json({ suggestions, candidates: candidates.map(({ index, ...c }) => c) });
   } catch (error: any) {
     console.error("Batch assignment error:", error);
