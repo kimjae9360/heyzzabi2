@@ -249,10 +249,6 @@ export default function HistoryPage() {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3 text-muted-foreground mb-1">
-          <HistoryIcon className="w-5 h-5 text-primary" />
-          <h1 className="text-3xl font-black text-foreground tracking-tight">히스토리</h1>
-        </div>
         <p className="text-muted-foreground">
           회의록 등록부터 기획서·요구사항정의서 검토, 업무 진행까지 전체 파이프라인 이력입니다.
         </p>

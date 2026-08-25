@@ -428,7 +428,6 @@ export default function DocumentsPage() {
           강조 링, 아직 안 온 단계는 흐리게. 탭 자체는 항상 클릭 가능(과거 단계도 열람 목적). */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-8 flex-wrap">
-          <h1 className="text-2xl font-bold shrink-0">문서생성</h1>
           <div className="flex items-center">
             {PIPELINE_STEPS.map((step, i) => {
               const done = stepDone(selectedDoc, step);

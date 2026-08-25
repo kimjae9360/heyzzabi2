@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Users, UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2, Briefcase } from "lucide-react";
+import { UserPlus, Search, Settings, MoreVertical, KeyRound, Trash2, ShieldCheck, X, Loader2, CheckCircle2, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { DEPARTMENTS, POSITIONS, JOB_TITLES, STATUS_META, SKILL_SUGGESTIONS, CERT_SUGGESTIONS, PROJECT_SUGGESTIONS } from "@/lib/employeeOptions";
@@ -258,10 +258,6 @@ const handlePasswordReset = async (id: string, name: string) => {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="w-8 h-8 text-primary" />
-            직원관리
-          </h1>
           <p className="text-muted-foreground mt-1">팀원 계정을 관리하고 역할과 권한을 설정하세요.</p>
         </div>
         {isPM && (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/lib/auth";
-import { FolderKanban, ListTodo, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge, X, AlertTriangle } from "lucide-react";
+import { FolderKanban, Search, LayoutGrid, MoreVertical, Loader2, ArrowRight, ChevronLeft, ChevronRight, ClipboardList, GitBranch, GitPullRequest, GitMerge, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -178,10 +178,6 @@ export default function TasksPage() {
     <div className="w-full max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       {/* Header */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3 text-muted-foreground mb-2">
-          <ListTodo className="w-5 h-5 text-primary" />
-          <h1 className="text-3xl font-black text-foreground tracking-tight">업무관리</h1>
-        </div>
         <p className="text-muted-foreground">나의 업무를 관리하거나 전체 프로젝트의 진행 상태를 파악하세요.</p>
       </div>
 

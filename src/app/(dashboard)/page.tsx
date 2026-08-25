@@ -14,13 +14,6 @@ export default function DashboardContainer() {
 
   return (
     <div className="space-y-6">
-      {/* Unified Header */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold">대시보드</h1>
-        </div>
-      </div>
-
       {/* Tabs — 성과 통계(팀 전체 KPI)는 PM 전용 */}
       {isPM ? (
         <div className="flex border-b border-foreground/10 mb-6 w-max">
