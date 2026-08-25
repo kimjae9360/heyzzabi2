@@ -46,13 +46,11 @@ export default function SettingsPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const listRes = await fetch("/api/projects");
-        const list = await listRes.json();
-        const projects = Array.isArray(list) ? list : list.data || [];
-        if (projects.length === 0) { setProject(null); return; }
-        const detailRes = await fetch(`/api/projects/${projects[0].id}`);
-        const detail = await detailRes.json();
-        if (detail.success) {
+        // 예전엔 목록 조회 → 첫 프로젝트 id로 상세 조회 2단계였다 — 원격 DB 왕복이 하나 늘 때마다
+        // 체감 지연이 커서(/api/projects/current 참고) 단일 요청으로 합쳤다.
+        const res = await fetch("/api/projects/current");
+        const detail = await res.json();
+        if (detail.success && detail.data) {
           const p: Project = detail.data;
           setProject(p);
           setAgentConfig(parseAgentConfig(p.agentConfig));
