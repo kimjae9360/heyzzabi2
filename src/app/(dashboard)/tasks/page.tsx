@@ -84,8 +84,11 @@ export default function TasksPage() {
     else setFilterScope("ME");
   }, [isPM]);
 
-  const fetchTasks = async () => {
-    setLoading(true);
+  // silent=true는 이미 목록이 화면에 떠 있는 상태에서 데이터만 조용히 갱신할 때 쓴다(예: 상세
+  // 모달 닫을 때) — 전체 화면 로딩 스피너로 목록을 통째로 갈아끼우면 리스트가 언마운트됐다
+  // 다시 그려지면서 스크롤 위치가 맨 위로 튀는 문제가 있었다(사용자가 실제로 보고 발견함).
+  const fetchTasks = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch("/api/tasks");
       const json = await res.json();
@@ -93,7 +96,7 @@ export default function TasksPage() {
     } catch (error) {
       console.error(error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -340,7 +343,7 @@ export default function TasksPage() {
         <TaskDetailModal
           task={selectedTaskForDetail}
           members={members}
-          onClose={() => { setSelectedTaskForDetail(null); fetchTasks(); }}
+          onClose={() => { setSelectedTaskForDetail(null); fetchTasks(true); }}
         />
       )}
     </div>
