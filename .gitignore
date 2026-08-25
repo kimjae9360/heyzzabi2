@@ -53,3 +53,6 @@ next-env.d.ts
 
 # one-off dev/debug scripts, not part of the app
 /members_page_dump.txt
+
+# 기획/참고용 원본 문서 (WBS 엑셀, 통합기획안) — 코드가 아니라 추적 대상 아님
+/Reference/
