@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import {
   FileText, Plus, Bot, Loader2, Send, CheckCircle2, XCircle,
   AlertCircle, Clock, RotateCcw, MessageSquare, X, FolderKanban,
-  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock, Bell,
+  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewDocumentModal } from "@/components/projects/NewDocumentModal";
@@ -85,6 +85,12 @@ export default function DocumentsPage() {
     setSelectedDocId(doc.id);
     setActiveTab(stageOf(doc));
   };
+  const stepDone = (doc: ProjectDocument | null, step: PipelineTab): boolean => {
+    if (!doc) return false;
+    if (step === "proposal") return doc.proposalStatus === "APPROVED";
+    if (step === "reqSpec") return doc.reqSpecStatus === "APPROVED";
+    return false; // 업무분배는 "완료"라는 개념 자체가 없어(계속 추가 배분 가능) 항상 false
+  };
 
   // 히스토리 등 다른 화면에서 "문서생성에서 열기"로 넘어올 때 ?docId=...&tab=... 쿼리로
   // 특정 문서·탭을 바로 열어준다. localStorage로 복원한 탭보다 이 쪽이 우선한다(방금 클릭한 의도이므로).
@@ -154,6 +160,15 @@ export default function DocumentsPage() {
   useEffect(() => {
     if (!selectedDocId && documents.length > 0) selectDoc(documents[0]);
   }, [documents, selectedDocId]);
+
+  // 승인이 끝난(=완료된) 단계는 탭 자체를 잠가 다시 못 들어가게 한다 — 승인 후에도 이전 탭이
+  // 계속 열람/조작 가능해 보이면 "이미 승인됐는데도 그 전 화면이 보여서 헷갈린다"는 문제가
+  // 있었다(실제 피드백). 지금 보던 탭이 잠기게 되면(다른 사람이 방금 승인 처리한 경우 포함)
+  // 자동으로 "지금 진행해야 할" 단계로 넘어가, 첫 화면이 항상 해야 할 일부터 보이게 한다.
+  useEffect(() => {
+    if (!selectedDoc) return;
+    if (stepDone(selectedDoc, activeTab)) setActiveTab(stageOf(selectedDoc));
+  }, [selectedDoc?.id, selectedDoc?.proposalStatus, selectedDoc?.reqSpecStatus, activeTab]);
 
   const patchDoc = (docId: string, patch: Partial<ProjectDocument>) => {
     setProject((prev: any) => ({
@@ -431,37 +446,6 @@ export default function DocumentsPage() {
   const filteredDocuments = docFilter === "all" ? documents : documents.filter(d => docStatusKey(d) === docFilter);
 
   const PIPELINE_STEPS: PipelineTab[] = ["proposal", "reqSpec", "taskAssignment"];
-  const stepDone = (doc: ProjectDocument | null, step: PipelineTab): boolean => {
-    if (!doc) return false;
-    if (step === "proposal") return doc.proposalStatus === "APPROVED";
-    if (step === "reqSpec") return doc.reqSpecStatus === "APPROVED";
-    return false; // 업무분배는 "완료"라는 개념 자체가 없어(계속 추가 배분 가능) 항상 false
-  };
-  const PIPELINE_STEP_INDEX: Record<PipelineTab, number> = { proposal: 0, reqSpec: 1, taskAssignment: 2 };
-
-  // 문서가 실제로 가있는 단계(stageOf)와 지금 보고 있는 탭이 다르고, 그 실제 단계가 "앞서" 있을
-  // 때만(과거 단계를 그냥 열람 중인 건 제외) 다음에 뭘 해야 하는지 알려준다 — 승인/반려는 실시간
-  // 갱신이 없어서(웹소켓 없음), 다른 사람이 방금 승인했어도 새로고침 전엔 이 탭으로 안내가 없으면
-  // 사용자가 "다음 단계로 넘어간 걸" 놓치기 쉽다(실제 피드백).
-  const stageNudge = (() => {
-    if (!selectedDoc) return null;
-    const docStage = stageOf(selectedDoc);
-    if (docStage === activeTab) return null;
-    if (PIPELINE_STEP_INDEX[docStage] <= PIPELINE_STEP_INDEX[activeTab]) return null;
-
-    if (docStage === "reqSpec") {
-      if (isPM && selectedDoc.reqSpecStatus === "PENDING_REVIEW") {
-        return { text: "요구사항정의서 검토 요청이 도착했습니다. 승인 또는 반려를 진행해주세요.", target: "reqSpec" as PipelineTab };
-      }
-      if (!isPM && selectedDoc.reqSpecStatus === "DRAFT") {
-        return { text: "기획서가 승인되었습니다. 요구사항정의서를 진행해주세요.", target: "reqSpec" as PipelineTab };
-      }
-    }
-    if (docStage === "taskAssignment" && isPM) {
-      return { text: "요구사항정의서가 승인되었습니다. 업무 배분을 진행해주세요.", target: "taskAssignment" as PipelineTab };
-    }
-    return null;
-  })();
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-500">
@@ -476,14 +460,21 @@ export default function DocumentsPage() {
               const isDocStage = selectedDoc ? stageOf(selectedDoc) === step : false;
               const isViewed = activeTab === step;
               const prevDone = i > 0 ? stepDone(selectedDoc, PIPELINE_STEPS[i - 1]) : false;
+              // 이미 승인이 끝난(=done) 단계는 다시 들어갈 수 없게 잠근다 — 실제 클릭도 막고
+              // 시각적으로도 잠금 상태임을 보여줘서, "승인됐는데도 그 전 화면이 계속 보여 헷갈림"을 없앤다.
+              const locked = done;
               return (
                 <Fragment key={step}>
                   {i > 0 && <div className={cn("h-0.5 w-6 md:w-10 rounded-full transition-colors", prevDone ? "bg-emerald-500/50" : "bg-black/10 dark:bg-white/10")} />}
                   <button
-                    onClick={() => setActiveTab(step)}
+                    onClick={() => !locked && setActiveTab(step)}
+                    disabled={locked}
+                    title={locked ? "승인이 완료되어 더 이상 열람할 수 없습니다." : undefined}
                     className={cn(
                       "flex items-center gap-2 pb-1 px-1 text-base font-medium transition-colors border-b-2",
-                      isViewed ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
+                      locked
+                        ? "border-transparent text-muted-foreground/50 cursor-not-allowed"
+                        : isViewed ? "border-primary text-primary font-bold" : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
                   >
                     <span className={cn(
@@ -492,7 +483,7 @@ export default function DocumentsPage() {
                         : isDocStage ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                         : "bg-black/10 dark:bg-white/10 text-muted-foreground"
                     )}>
-                      {done ? <CheckCircle2 className="w-3 h-3" /> : i + 1}
+                      {locked ? <Lock className="w-3 h-3" /> : i + 1}
                     </span>
                     {PIPELINE_TAB_LABEL[step]}
                   </button>
@@ -502,20 +493,6 @@ export default function DocumentsPage() {
           </div>
         </div>
       </div>
-
-      {stageNudge && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/10 border border-primary/20 text-sm">
-          <span className="flex items-center gap-2 font-medium text-primary">
-            <Bell className="w-4 h-4 shrink-0" /> {stageNudge.text}
-          </span>
-          <button
-            onClick={() => setActiveTab(stageNudge.target)}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
-          >
-            이동하기
-          </button>
-        </div>
-      )}
 
       {/* 우측 상세 패널의 너비가 문서마다 안의 콘텐츠(표/긴 텍스트) 크기에 따라 밀려서 달라지지 않도록,
           1fr 대신 minmax(0,1fr)로 트랙 크기를 컨테이너 폭에 고정하고 내부에서만 overflow 스크롤되게 한다 */}
@@ -825,18 +802,20 @@ function DocDetail({
   const parsedProposalRef = parseProposalDoc(doc.proposalContent);
 
   // 잠긴 상태에서도 내용 자체는 볼 수 있어야 하므로, 수정은 막되 펼쳐서 전체를 확인하는 건 허용한다.
-  // 기본은 접어서(h-20) 자리를 적게 차지하다가, 필요할 때만 펼친다(h-64) — 수정 가능 여부와는 별개.
-  const [rawLockedExpanded, setRawLockedExpanded] = useState(false);
-  useEffect(() => { setRawLockedExpanded(false); }, [doc.id]);
+  // 기본은 펼쳐서(h-64) 보여준다 — 접혀 있으면 지금 보는 게 원본 회의록인지 기획서 본문인지
+  // 헷갈린다는 실제 피드백이 있어, 처음엔 항상 펼친 채로 시작하고 필요할 때만 접는다.
+  const [rawLockedExpanded, setRawLockedExpanded] = useState(true);
+  useEffect(() => { setRawLockedExpanded(true); }, [doc.id]);
 
   // 검토요청(PENDING_REVIEW) 이후 ~ 승인(APPROVED) 상태에서는 원본 회의록을 잠근다 —
   // 이미 그 내용을 근거로 기획서가 만들어져 검토에 들어간 상태라, 뒤에서 원본이 바뀌면 안 된다.
   // PM이 반려하면 다시 풀려서 수정할 수 있고, 그때 기획서 에이전트도 다시 실행할 수 있다.
   const rawLocked = status === "PENDING_REVIEW" || status === "APPROVED";
 
-  // 요구사항정의서 탭 상단에 보여줄 기획서 원본 참고 박스 — 기본은 접어두고 필요할 때만 펼친다
-  const [proposalRefOpen, setProposalRefOpen] = useState(false);
-  useEffect(() => { setProposalRefOpen(false); }, [doc.id]);
+  // 요구사항정의서 탭 상단에 보여줄 기획서 원본 참고 박스 — 접혀 있으면 이 박스와 그 아래
+  // 요구사항정의서 본문을 구분하기 어려워 헷갈린다는 피드백이 있어, 기본은 펼친 채로 시작한다.
+  const [proposalRefOpen, setProposalRefOpen] = useState(true);
+  useEffect(() => { setProposalRefOpen(true); }, [doc.id]);
   const proposalMeta = STATUS_META[doc.proposalStatus] ?? STATUS_META.DRAFT;
   const REQSPEC_BLOCK_MESSAGE: Record<string, string> = {
     DRAFT: "기획서가 아직 작성 중입니다. 기획서를 검토요청하고 승인받아야 요구사항정의서를 생성할 수 있습니다.",
@@ -941,6 +920,9 @@ function DocDetail({
         </div>
       )}
 
+      {/* 위 참고 박스(원본 회의록 / 기획서 원본)와 시각적으로 비슷해서, 지금 보고 있는 게
+          어느 문서인지 헷갈린다는 피드백이 있어 실제 생성 문서 위에 이름표를 붙인다. */}
+      <p className="text-sm text-muted-foreground font-semibold">{TAB_LABEL[type]}</p>
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="max-h-[520px] overflow-y-auto bg-black/5 dark:bg-black/20">
           {content && parsedContent ? (
