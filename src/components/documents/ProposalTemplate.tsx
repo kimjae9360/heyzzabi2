@@ -142,9 +142,13 @@ export function ProposalTemplate({
                     className={`${inputCls} flex-1`}
                   />
                   <input
+                    type="date"
                     value={m.date}
                     onChange={e => setMilestone(i, { date: e.target.value })}
-                    placeholder="시기"
+                    // 마일스톤은 이 기획서의 프로젝트 기간 안에서만 의미가 있으므로, 달력에서도
+                    // 그 범위 밖 날짜는 아예 선택하지 못하게 min/max로 막는다.
+                    min={doc.projectPeriod?.start || undefined}
+                    max={doc.projectPeriod?.end || undefined}
                     className={`${inputCls} w-40`}
                   />
                   <button type="button" onClick={() => removeMilestone(i)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
