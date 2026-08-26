@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAllPMs } from "@/lib/notify";
+import { requireAuth, requirePM } from "@/lib/requireAuth";
 
 // tasks/route.ts(일괄 수정)의 화이트리스트와 동일해야 한다 — 여기 없으면 "TODO" 같은 값이
 // 그대로 저장돼서 칸반보드의 어느 컬럼에도 안 걸리는 유령 업무가 생긴다(QA에서 발견).
@@ -13,6 +14,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { session, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { id } = await params;
     const body = await request.json();
 
@@ -21,6 +25,25 @@ export async function PATCH(
 
     if (status !== undefined && !VALID_TASK_STATUSES.includes(status)) {
       return NextResponse.json({ success: false, error: "잘못된 status 값입니다." }, { status: 400 });
+    }
+
+    // 담당자 지정/재지정, 일정·소요시간 재산정은 "업무 배분" 그 자체라 PM 고유 권한이다.
+    // 배분승인대기(PENDING_APPROVAL)로 보내는 것도 실질적으로 담당자를 확정하는 행위라 마찬가지다.
+    // 예전엔 이 라우트에 권한 체크가 전혀 없어서, 프론트에서 버튼/드롭다운을 숨겨도 API를 직접
+    // 호출하면(칸반의 "배분 승인 요청" 버튼이 대표 사례) 일반유저가 그대로 우회할 수 있었다.
+    const touchesAssignmentAuthority =
+      assigneeId !== undefined || wbsStart !== undefined || wbsEnd !== undefined ||
+      estimatedHours !== undefined || assignmentReason !== undefined || status === "PENDING_APPROVAL";
+    if (touchesAssignmentAuthority && session!.role !== "PM") {
+      return NextResponse.json({ success: false, error: "PM 권한이 필요합니다." }, { status: 403 });
+    }
+
+    // 그 외(제목/설명/진행률/본인 업무 완료 처리 등 자가보고)는 PM이거나, 본인이 담당자인 업무에 한해 허용
+    if (session!.role !== "PM") {
+      const existing = await prisma.task.findUnique({ where: { id }, select: { assigneeId: true } });
+      if (!existing || existing.assigneeId !== session!.userId) {
+        return NextResponse.json({ success: false, error: "본인이 담당한 업무만 수정할 수 있습니다." }, { status: 403 });
+      }
     }
 
     // wbsStart/wbsEnd는 각각 독립적으로(부분 업데이트) 보내질 수 있어서, 요청에 실제로 온 값과
@@ -86,6 +109,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { id } = await params;
     await prisma.task.delete({ where: { id } });
     return NextResponse.json({ success: true });

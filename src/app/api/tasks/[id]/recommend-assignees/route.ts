@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 import OpenAI from "openai";
 
 const toList = (s: string | null) => (s ? s.split(",").map(v => v.trim()).filter(Boolean) : []);
@@ -14,6 +15,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // 누구를 배정할지 추천받는 것도 배분 의사결정의 일부라 PM 전용이다 — 가드가 없으면
+    // 일반유저도 이 API를 직접 호출해 OpenAI 비용을 발생시키며 추천을 받아갈 수 있었다.
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { id } = await params;

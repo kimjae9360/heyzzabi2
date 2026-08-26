@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 import { parseAgentConfig } from "@/lib/agentConfig";
+import { requirePM } from "@/lib/requireAuth";
 
 // FR-05-014/015: 승인된 요구사항정의서를 기반으로 3~7개의 업무를 자동 생성한다.
 // 각 업무는 업무명/설명/예상 소요시간을 갖는다.
@@ -10,6 +11,10 @@ export async function POST(
   props: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    // 업무분배 탭의 "업무 배분 시작"(runAssign) 흐름 안에서만 호출되는, PM 전용 액션이다.
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const params = await props.params;

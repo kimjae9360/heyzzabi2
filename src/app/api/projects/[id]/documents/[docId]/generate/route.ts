@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
 import type { ProposalDoc, ReqSpecDoc } from "@/lib/documentTemplates";
 import { parseAgentConfig } from "@/lib/agentConfig";
+import { requireAuth } from "@/lib/requireAuth";
 
 const NO_HALLUCINATION_RULE =
   "[절대 규칙] 원본에 명시되지 않은 사실, 기능, 수치, 일정은 절대 추가하거나 지어내지 마라(No hallucination). " +
@@ -16,6 +17,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { session, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     // 빌드 시점(Next.js의 페이지 데이터 수집 단계)에 이 모듈이 평가되는데, 그때는
     // 환경변수가 없을 수 있어 모듈 스코프에서 생성하면 배포 빌드 자체가 깨진다 — 요청 안에서 생성한다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -23,11 +27,14 @@ export async function POST(
     const body = await request.json();
     // type: 어떤 문서를 생성할지 지정 — 'proposal'(기획서) 또는 'reqSpec'(요구사항정의서).
     // 이 둘은 파이프라인 순서가 고정되어 있어(회의록→기획서→요구사항정의서) 아래 if/else if로 분기한다.
-    const { type, autoApprove } = body; // 'proposal' | 'reqSpec'
+    const { type } = body; // 'proposal' | 'reqSpec'
     // PM이 직접 에이전트를 실행하는 경우: PM에게 다시 검토요청을 보내는 건 의미가 없으므로
     // 검토 단계 없이 바로 승인 상태로 만든다(FR-05-021과 같은 원칙 — 이미 근거를 보고 본인이 확정하는 것).
     // 일반유저가 실행하면 여전히 PM 검토가 필요하므로 DRAFT로 둔다.
-    const resultStatus = autoApprove ? "APPROVED" : "DRAFT";
+    // 주의: 이전엔 클라이언트가 보낸 autoApprove 값을 그대로 믿었다 — 일반유저가 이 API를 직접
+    // autoApprove:true로 호출하면 PM 검토 없이 자기 문서를 스스로 승인시킬 수 있었다(실제 버그).
+    // 세션의 role은 로그인 시 서버가 DB에서 읽어 서명한 값이라 클라이언트가 조작할 수 없다.
+    const resultStatus = session!.role === "PM" ? "APPROVED" : "DRAFT";
 
     const doc = await prisma.projectDocument.findUnique({
       where: { id: docId }

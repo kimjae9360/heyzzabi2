@@ -170,7 +170,7 @@ export default function DocumentsPage() {
       const res = await fetch(`/api/projects/${project.id}/documents/${doc.id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, autoApprove: isPM }),
+        body: JSON.stringify({ type }),
       });
       const data = await res.json();
       if (res.ok) {

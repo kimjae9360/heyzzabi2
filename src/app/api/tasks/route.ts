@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAndNotifyOverdueTasks } from "@/lib/overdueCheck";
+import { requirePM } from "@/lib/requireAuth";
 
 // 전체 업무 목록 조회 — assigneeId/status 쿼리 파라미터로 선택적으로 필터링한다
 // (예: "내 업무만 보기", 칸반보드의 특정 상태 컬럼만 보기).
@@ -71,6 +72,11 @@ export async function POST(req: Request) {
 // 이 화이트리스트는 tasks/[id]/route.ts의 VALID_TASK_STATUSES와 항상 같게 유지해야 한다.
 export async function PATCH(req: Request) {
   try {
+    // 이 라우트 자체 설명대로 파이프라인 규칙 없이 아무 상태로나 옮기는 관리자용 경로라
+    // PM 권한이 필요하다 — 원래 가드가 전혀 없었다.
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const body = await req.json();
     const taskId = body.id || body.taskId;
     const newStatus = body.status || body.newStatus;
