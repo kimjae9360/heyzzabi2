@@ -136,12 +136,6 @@ export function ProposalTemplate({
               {doc.milestones?.map((m, i) => (
                 <div key={i} className="flex gap-2 items-center">
                   <input
-                    value={m.name}
-                    onChange={e => setMilestone(i, { name: e.target.value })}
-                    placeholder="마일스톤"
-                    className={`${inputCls} flex-1`}
-                  />
-                  <input
                     type="date"
                     value={m.date}
                     onChange={e => setMilestone(i, { date: e.target.value })}
@@ -149,9 +143,6 @@ export function ProposalTemplate({
                     // 그 범위 밖 날짜는 아예 선택하지 못하게 min/max로 막는다.
                     min={doc.projectPeriod?.start || undefined}
                     max={doc.projectPeriod?.end || undefined}
-                    // inputCls에 이미 w-full이 있어서 뒤에 w-40만 붙이면 Tailwind 빌드 순서상
-                    // w-full이 이겨버려 옆의 flex-1(마일스톤 이름) 칸이 거의 안 보일 만큼
-                    // 찌그러지는 버그가 있었다 — w-40!로 명시적 우선순위를 줘서 고정폭을 강제한다.
                     className={`${inputCls} w-40!`}
                   />
                   <button type="button" onClick={() => removeMilestone(i)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
@@ -164,22 +155,16 @@ export function ProposalTemplate({
               </button>
             </div>
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-black">
-                  <th className="text-left py-2 font-semibold">마일스톤</th>
-                  <th className="text-left py-2 font-semibold w-40">시기</th>
-                </tr>
-              </thead>
-              <tbody>
-                {doc.milestones.map((m, i) => (
-                  <tr key={i} className="border-b border-gray-200">
-                    <td className="py-2">{m.name}</td>
-                    <td className="py-2">{m.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            // 이름 입력칸을 없애 마일스톤이 날짜 하나만 갖게 됐으므로, 읽기 전용 표도
+            // 항상 비어있을 "마일스톤" 이름 컬럼 없이 날짜 목록만 보여준다.
+            <ul className="text-sm space-y-1.5">
+              {doc.milestones.map((m, i) => (
+                <li key={i} className="flex items-center gap-2 py-1 border-b border-gray-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-black shrink-0" />
+                  {m.date}
+                </li>
+              ))}
+            </ul>
           )}
         </Section>
       )}
