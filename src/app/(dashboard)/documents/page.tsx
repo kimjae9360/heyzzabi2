@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import {
   FileText, Plus, Bot, Loader2, Send, CheckCircle2, XCircle,
   AlertCircle, Clock, RotateCcw, MessageSquare, X, FolderKanban,
-  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock,
+  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewDocumentModal } from "@/components/projects/NewDocumentModal";
@@ -425,6 +425,31 @@ export default function DocumentsPage() {
     if (step === "reqSpec") return doc.reqSpecStatus === "APPROVED";
     return false; // 업무분배는 "완료"라는 개념 자체가 없어(계속 추가 배분 가능) 항상 false
   };
+  const PIPELINE_STEP_INDEX: Record<PipelineTab, number> = { proposal: 0, reqSpec: 1, taskAssignment: 2 };
+
+  // 문서가 실제로 가있는 단계(stageOf)와 지금 보고 있는 탭이 다르고, 그 실제 단계가 "앞서" 있을
+  // 때만(과거 단계를 그냥 열람 중인 건 제외) 다음에 뭘 해야 하는지 알려준다 — 승인/반려는 실시간
+  // 갱신이 없어서(웹소켓 없음), 다른 사람이 방금 승인했어도 새로고침 전엔 이 탭으로 안내가 없으면
+  // 사용자가 "다음 단계로 넘어간 걸" 놓치기 쉽다(실제 피드백).
+  const stageNudge = (() => {
+    if (!selectedDoc) return null;
+    const docStage = stageOf(selectedDoc);
+    if (docStage === activeTab) return null;
+    if (PIPELINE_STEP_INDEX[docStage] <= PIPELINE_STEP_INDEX[activeTab]) return null;
+
+    if (docStage === "reqSpec") {
+      if (isPM && selectedDoc.reqSpecStatus === "PENDING_REVIEW") {
+        return { text: "요구사항정의서 검토 요청이 도착했습니다. 승인 또는 반려를 진행해주세요.", target: "reqSpec" as PipelineTab };
+      }
+      if (!isPM && selectedDoc.reqSpecStatus === "DRAFT") {
+        return { text: "기획서가 승인되었습니다. 요구사항정의서를 진행해주세요.", target: "reqSpec" as PipelineTab };
+      }
+    }
+    if (docStage === "taskAssignment" && isPM) {
+      return { text: "요구사항정의서가 승인되었습니다. 업무 배분을 진행해주세요.", target: "taskAssignment" as PipelineTab };
+    }
+    return null;
+  })();
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-500">
@@ -465,6 +490,20 @@ export default function DocumentsPage() {
           </div>
         </div>
       </div>
+
+      {stageNudge && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/10 border border-primary/20 text-sm">
+          <span className="flex items-center gap-2 font-medium text-primary">
+            <Bell className="w-4 h-4 shrink-0" /> {stageNudge.text}
+          </span>
+          <button
+            onClick={() => setActiveTab(stageNudge.target)}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-colors"
+          >
+            이동하기
+          </button>
+        </div>
+      )}
 
       {/* 우측 상세 패널의 너비가 문서마다 안의 콘텐츠(표/긴 텍스트) 크기에 따라 밀려서 달라지지 않도록,
           1fr 대신 minmax(0,1fr)로 트랙 크기를 컨테이너 폭에 고정하고 내부에서만 overflow 스크롤되게 한다 */}
