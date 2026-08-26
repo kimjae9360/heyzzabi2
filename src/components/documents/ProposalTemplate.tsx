@@ -149,7 +149,10 @@ export function ProposalTemplate({
                     // 그 범위 밖 날짜는 아예 선택하지 못하게 min/max로 막는다.
                     min={doc.projectPeriod?.start || undefined}
                     max={doc.projectPeriod?.end || undefined}
-                    className={`${inputCls} w-40`}
+                    // inputCls에 이미 w-full이 있어서 뒤에 w-40만 붙이면 Tailwind 빌드 순서상
+                    // w-full이 이겨버려 옆의 flex-1(마일스톤 이름) 칸이 거의 안 보일 만큼
+                    // 찌그러지는 버그가 있었다 — w-40!로 명시적 우선순위를 줘서 고정폭을 강제한다.
+                    className={`${inputCls} w-40!`}
                   />
                   <button type="button" onClick={() => removeMilestone(i)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg shrink-0">
                     <Trash2 className="w-4 h-4" />
