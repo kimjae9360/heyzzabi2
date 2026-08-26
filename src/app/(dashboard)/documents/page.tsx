@@ -223,7 +223,14 @@ export default function DocumentsPage() {
         body: JSON.stringify({ type }),
       });
       const data = await res.json();
-      if (data.success) patchDoc(doc.id, { [STATUS_FIELD[type]]: "APPROVED", [REASON_FIELD[type]]: null } as Partial<ProjectDocument>);
+      if (data.success) {
+        patchDoc(doc.id, { [STATUS_FIELD[type]]: "APPROVED", [REASON_FIELD[type]]: null } as Partial<ProjectDocument>);
+      } else {
+        alert(data.error || "승인에 실패했습니다.");
+        fetchProject(project.id);
+      }
+    } catch {
+      alert("승인 요청 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.");
     } finally {
       setBusy(null);
     }
@@ -244,7 +251,12 @@ export default function DocumentsPage() {
         patchDoc(docId, { [STATUS_FIELD[type]]: "REJECTED", [REASON_FIELD[type]]: rejectReason } as Partial<ProjectDocument>);
         setRejectModal(null);
         setRejectReason("");
+      } else {
+        alert(data.error || "반려에 실패했습니다.");
+        fetchProject(project.id);
       }
+    } catch {
+      alert("반려 요청 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.");
     } finally {
       setBusy(null);
     }
