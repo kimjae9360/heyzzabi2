@@ -2,16 +2,19 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
 import { requirePM } from "@/lib/requireAuth";
+import { isDevToolsEnabled } from "@/lib/devTools";
 
 // DEV 전용 — 좌측 사이드바 "DEV 롤 토글"이 재로그인 없이 팀원 화면/권한을 그대로 미리보기 위해
 // 쓰는 라우트. 이전엔 클라이언트(localStorage)만 바꿔서 화면 라벨은 바뀌어도 실제 API 호출은
 // 여전히 PM 권한으로 처리됐다 — "일반유저가 만든 회의록을 PM이 대신 생성하면 안 된다" 같은
 // 서버 권한 규칙을 빠르게 테스트하려면 진짜로 세션이 바뀌어야 한다는 요청으로 추가했다.
-// 프로덕션에서는 절대 열리면 안 되므로 NODE_ENV로 강하게 막는다 — PM이 이미 가진 권한 밖의
-// 일을 할 수 있게 해주는 건 아니지만(오히려 낮은 권한으로 전환), 비밀번호 없이 다른 계정의
-// 서명된 세션을 발급하는 기능이라 개발 환경 밖에서는 존재 자체가 위험하다.
+// 기본적으로 프로덕션 빌드에서는 막혀 있다 — 비밀번호 없이 다른 계정의 서명된 세션을 발급하는
+// 기능이라 아무 배포에나 기본으로 열려있으면 위험하기 때문. 배포 환경에서도 로그인 없이 빠르게
+// 테스트하고 싶다면, 그 환경변수에 NEXT_PUBLIC_ENABLE_DEV_TOOLS=true를 명시적으로 설정해야 한다
+// (src/lib/devTools.ts 참고 — 이 값을 켠 배포는 PM 계정이 다른 계정을 마음대로 사칭할 수 있다는
+// 뜻이므로, 실제 고객 데이터가 있는 배포에는 절대 켜면 안 된다).
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV === "production") {
+  if (!isDevToolsEnabled()) {
     return NextResponse.json({ error: "이 기능은 개발 환경에서만 사용할 수 있습니다." }, { status: 403 });
   }
 
@@ -49,9 +52,9 @@ export async function POST(request: Request) {
       {
         httpOnly: true,
         sameSite: "lax",
-        // 이 라우트 자체가 함수 맨 위에서 프로덕션이면 이미 막히므로(NODE_ENV==='production' 도달 불가),
-        // 여기 도달했다는 건 항상 개발 환경이라는 뜻이라 secure는 고정으로 false.
-        secure: false,
+        // opt-in으로 프로덕션(HTTPS)에서도 이 라우트가 열릴 수 있으므로, secure는 로그인 라우트와
+        // 동일하게 NODE_ENV 기준으로 정확히 맞춘다(로컬 HTTP에서는 false, 배포 HTTPS에서는 true).
+        secure: process.env.NODE_ENV === "production",
         path: "/",
         maxAge: 60 * 60 * 24 * 7,
       }

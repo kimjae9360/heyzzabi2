@@ -11,12 +11,13 @@
 import { useAuth } from "@/lib/auth";
 import { ShieldCheck, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDevToolsEnabled } from "@/lib/devTools";
 
 export function DevRoleToggle({ isOpen }: { isOpen: boolean }) {
   const { user, devToggleRole } = useAuth();
-  // 서버(dev-impersonate 라우트)도 프로덕션에서 이 기능을 거부하지만, 배포 빌드에서는 버튼
-  // 자체를 아예 안 보이게 해서 "배포 전 제거" 항목을 코드 삭제 없이도 충족한다.
-  if (!user || process.env.NODE_ENV === "production") return null;
+  // 서버(dev-impersonate 라우트)도 같은 기준(isDevToolsEnabled)으로 이 기능을 거부하므로,
+  // 여기서 버튼을 숨겨도 실제 보안 경계는 서버 쪽이다 — 이건 그냥 안 켜져 있을 때 안 보이게 하는 것.
+  if (!user || !isDevToolsEnabled()) return null;
 
   const isPM = user.role === "PM";
 
