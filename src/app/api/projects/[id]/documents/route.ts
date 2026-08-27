@@ -10,6 +10,15 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     const { session, error: authError } = await requireAuth();
     if (authError) return authError;
 
+    // requireAuth가 통과했다면 session.userId는 항상 있어야 하지만, 개발 서버 핫리로드 중
+    // 드물게(실사용 중 재현됨) 이 값이 비어 authorId가 null로 저장되던 문제가 있었다 — 원인이
+    // 코드 로직이 아니라 dev 서버 상태였던 것으로 보이지만, 재발 시 조용히 잘못된 데이터가
+    // 쌓이는 대신 확실히 에러로 막고 재시도를 유도한다("누가 만들었는지 알 수 없는 문서"가
+    // 다시 생기는 것보다 생성 실패가 훨씬 안전하다).
+    if (!session?.userId) {
+      return NextResponse.json({ error: "세션 정보를 확인할 수 없습니다. 새로고침 후 다시 시도해주세요." }, { status: 401 });
+    }
+
     const params = await props.params;
     const body = await request.json();
     const { title, rawContent, meetingDate, attendees } = body;
@@ -34,6 +43,7 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
 
     return NextResponse.json(doc);
   } catch (error) {
+    console.error("Document create error:", error);
     return NextResponse.json({ error: "문서 생성 실패" }, { status: 500 });
   }
 }

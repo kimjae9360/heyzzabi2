@@ -25,7 +25,8 @@ export async function GET(
           orderBy: { createdAt: "desc" }
         },
         documents: {
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          include: { author: { select: { id: true, name: true, email: true } } },
         },
         assigneeRecommendations: {
           orderBy: { createdAt: "desc" }

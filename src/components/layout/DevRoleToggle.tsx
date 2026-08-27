@@ -14,7 +14,9 @@ import { cn } from "@/lib/utils";
 
 export function DevRoleToggle({ isOpen }: { isOpen: boolean }) {
   const { user, devToggleRole } = useAuth();
-  if (!user) return null;
+  // 서버(dev-impersonate 라우트)도 프로덕션에서 이 기능을 거부하지만, 배포 빌드에서는 버튼
+  // 자체를 아예 안 보이게 해서 "배포 전 제거" 항목을 코드 삭제 없이도 충족한다.
+  if (!user || process.env.NODE_ENV === "production") return null;
 
   const isPM = user.role === "PM";
 

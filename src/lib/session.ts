@@ -13,14 +13,22 @@ if (!process.env.JWT_SECRET && process.env.NODE_ENV !== "test") {
   console.warn("[session] JWT_SECRET 환경변수가 설정되지 않아 개발용 기본 시크릿을 사용합니다. 배포 전 반드시 설정하세요.");
 }
 
-export type SessionPayload = { userId: string; role: "PM" | "EMPLOYEE"; iat: number };
+// impersonatedBy: DEV 롤 토글로 "일반유저" 미리보기 중일 때만 채워지는, 원래 로그인했던 PM의
+// userId. 이 값이 있어야 "PM으로 돌아가기"가 재로그인 없이 원래 계정을 정확히 복원할 수 있다
+// (src/app/api/auth/dev-impersonate, dev-stop-impersonate 참고).
+export type SessionPayload = { userId: string; role: "PM" | "EMPLOYEE"; iat: number; impersonatedBy?: string };
 
 function sign(body: string): string {
   return createHmac("sha256", SECRET).update(body).digest("base64url");
 }
 
-export function createSessionToken(userId: string, role: string): string {
-  const payload: SessionPayload = { userId, role: role === "PM" ? "PM" : "EMPLOYEE", iat: Date.now() };
+export function createSessionToken(userId: string, role: string, impersonatedBy?: string): string {
+  const payload: SessionPayload = {
+    userId,
+    role: role === "PM" ? "PM" : "EMPLOYEE",
+    iat: Date.now(),
+    ...(impersonatedBy && { impersonatedBy }),
+  };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${body}.${sign(body)}`;
 }

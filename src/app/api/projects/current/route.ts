@@ -26,7 +26,10 @@ export async function GET() {
           orderBy: { createdAt: "desc" }
         },
         documents: {
-          orderBy: { createdAt: "desc" }
+          orderBy: { createdAt: "desc" },
+          // 화면에 "작성자: 이름" 배지를 보여주기 위함(PM이 남의 회의록을 대신 생성하면 안 되는
+          // 규칙을 사람이 눈으로도 바로 확인할 수 있어야 한다는 피드백으로 추가).
+          include: { author: { select: { id: true, name: true, email: true } } },
         },
         assigneeRecommendations: {
           orderBy: { createdAt: "desc" }

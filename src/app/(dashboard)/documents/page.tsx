@@ -37,6 +37,8 @@ type ProjectDocument = {
   updatedAt: string;
   // 이 회의록을 등록한 사용자 id. 2026-08-27 이전 데이터는 없어 null일 수 있다(레거시).
   authorId: string | null;
+  // 화면에 "작성자: 이름" 배지를 보여주기 위한 관계 데이터. authorId가 null이면 이것도 null.
+  author: { id: string; name: string; email: string } | null;
 };
 
 const STATUS_META: Record<string, { label: string; className: string; icon: any }> = {
@@ -580,8 +582,12 @@ export default function DocumentsPage() {
                       </span>
                       {/* 제목이 겹치는 문서가 많아 구분하기 어려우니 날짜를 함께 보여준다 — 회의 날짜가
                           있으면 그걸(문서 내용과 의미가 맞음), 없으면(과거/시드 데이터) 최근 수정일로 대체 */}
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        {new Date(doc.meetingDate ?? doc.updatedAt).toLocaleDateString("ko-KR")}
+                      <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5">
+                        <span>{new Date(doc.meetingDate ?? doc.updatedAt).toLocaleDateString("ko-KR")}</span>
+                        {/* 누가 이 회의록을 시작했는지 눈으로 바로 확인할 수 있어야 한다는 피드백으로 추가 —
+                            PM이 남의 문서를 대신 생성 못 하게 막는 규칙과 짝을 이룬다. */}
+                        <span className="text-muted-foreground/60">·</span>
+                        <span className="truncate">작성자 {doc.author?.name || doc.author?.email || "알 수 없음"}</span>
                       </p>
                     </button>
                     {isDocDeletable(doc) ? (
@@ -842,7 +848,15 @@ function DocDetail({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold text-lg">{doc.title}</h2>
+        <div>
+          <h2 className="font-bold text-lg">{doc.title}</h2>
+          {/* PM이 남이 시작한 회의록에서 생성 버튼을 누르면 안 되는 규칙이 실제로 눈에 보여야 한다는
+              피드백으로 추가 — 아래 canGenerate 판단과 항상 같은 값(doc.author)을 근거로 쓴다. */}
+          <p className="text-xs text-muted-foreground mt-0.5">
+            작성자 {doc.author?.name || doc.author?.email || "알 수 없음"}
+            {doc.author?.id === currentUserId && <span className="text-primary font-medium"> (나)</span>}
+          </p>
+        </div>
         <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold", meta.className)}>
           <meta.icon className="w-3.5 h-3.5" /> {meta.label}
         </span>
