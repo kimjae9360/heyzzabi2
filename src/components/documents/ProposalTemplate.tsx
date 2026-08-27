@@ -1,7 +1,23 @@
-import type { ProposalDoc, ProposalFeature, ProposalMilestone } from "@/lib/documentTemplates";
+import type { FeaturePriority, ProposalDoc, ProposalFeature, ProposalMilestone } from "@/lib/documentTemplates";
 import { Trash2, Plus } from "lucide-react";
 
 const inputCls = "w-full bg-black/5 border border-black/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
+
+const PRIORITY_OPTIONS: FeaturePriority[] = ["필수", "권장", "선택"];
+const PRIORITY_BADGE_CLASS: Record<FeaturePriority, string> = {
+  필수: "bg-red-100 text-red-700",
+  권장: "bg-blue-100 text-blue-700",
+  선택: "bg-gray-100 text-gray-600",
+};
+
+function PriorityBadge({ priority }: { priority?: FeaturePriority }) {
+  const p = priority ?? "권장";
+  return (
+    <span className={`inline-block text-[11px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGE_CLASS[p]}`}>
+      {p}
+    </span>
+  );
+}
 
 export function ProposalTemplate({
   doc, title, dateLabel, editable, onChange,
@@ -83,12 +99,21 @@ export function ProposalTemplate({
             {doc.features?.map((f, i) => (
               <div key={i} className="flex gap-2 items-start p-3 rounded-lg bg-black/[0.03] border border-black/10">
                 <div className="flex-1 space-y-2">
-                  <input
-                    value={f.name}
-                    onChange={e => setFeature(i, { name: e.target.value })}
-                    placeholder="기능명"
-                    className={`${inputCls} font-semibold`}
-                  />
+                  <div className="flex gap-2 items-center">
+                    <input
+                      value={f.name}
+                      onChange={e => setFeature(i, { name: e.target.value })}
+                      placeholder="기능명"
+                      className={`${inputCls} font-semibold`}
+                    />
+                    <select
+                      value={f.priority ?? "권장"}
+                      onChange={e => setFeature(i, { priority: e.target.value as FeaturePriority })}
+                      className={`${inputCls} w-24! shrink-0`}
+                    >
+                      {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
                   <textarea
                     value={f.description}
                     onChange={e => setFeature(i, { description: e.target.value })}
@@ -109,7 +134,8 @@ export function ProposalTemplate({
           <ol className="space-y-3 list-decimal list-inside">
             {doc.features.map((f, i) => (
               <li key={i}>
-                <span className="font-semibold">{f.name}</span>
+                <span className="font-semibold">{f.name}</span>{" "}
+                <PriorityBadge priority={f.priority} />
                 <p className="text-sm text-gray-700 mt-0.5 ml-5 whitespace-pre-wrap">{f.description}</p>
               </li>
             ))}
@@ -129,8 +155,38 @@ export function ProposalTemplate({
         )}
       </Section>
 
+      {(editable || doc.risks) && (
+        <Section num="5" title="리스크 및 고려사항">
+          {editable ? (
+            <textarea
+              value={doc.risks ?? ""}
+              onChange={e => set("risks", e.target.value)}
+              placeholder="제약사항, 우려되는 점, 외부 의존성 등 (없으면 비워두세요)"
+              className={`${inputCls} h-20 resize-none whitespace-pre-wrap`}
+            />
+          ) : (
+            <p className="whitespace-pre-wrap leading-relaxed">{doc.risks}</p>
+          )}
+        </Section>
+      )}
+
+      {(editable || doc.successMetrics) && (
+        <Section num="6" title="성공 지표 (KPI)">
+          {editable ? (
+            <textarea
+              value={doc.successMetrics ?? ""}
+              onChange={e => set("successMetrics", e.target.value)}
+              placeholder="목표 수치나 판단 기준 (없으면 비워두세요)"
+              className={`${inputCls} h-20 resize-none whitespace-pre-wrap`}
+            />
+          ) : (
+            <p className="whitespace-pre-wrap leading-relaxed">{doc.successMetrics}</p>
+          )}
+        </Section>
+      )}
+
       {(editable || doc.milestones?.length > 0) && (
-        <Section num="5" title="일정 / 마일스톤">
+        <Section num="7" title="일정 / 마일스톤">
           {editable ? (
             <div className="space-y-2">
               {doc.milestones?.map((m, i) => (

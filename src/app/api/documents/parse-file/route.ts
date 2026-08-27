@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/requireAuth";
 
 // mammoth/pdf-parse가 Buffer 등 Node.js API를 사용하므로 Edge 런타임이 아닌
 // Node.js 런타임을 명시적으로 지정해야 한다
@@ -9,6 +10,9 @@ export const runtime = "nodejs";
 // AI 문서 파이프라인의 원본 입력이 된다.
 export async function POST(request: NextRequest) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) {

@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { subDays, format, differenceInDays } from "date-fns";
 import { ko } from "date-fns/locale";
+import { requireAuth } from "@/lib/requireAuth";
 
 // 분석(Analytics) 대시보드용 통계를 한 번에 계산해서 내려준다.
 // 전체 업무를 한 번만 조회한 뒤, 아래 항목들은 모두 이 tasks 배열을 메모리에서
 // 가공해 만든다(항목마다 별도 쿼리를 날리지 않는다).
 export async function GET() {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const tasks = await prisma.task.findMany({
       include: {
         assignee: { select: { name: true } },

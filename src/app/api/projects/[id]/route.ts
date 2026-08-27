@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePM } from "@/lib/requireAuth";
+import { requireAuth, requirePM } from "@/lib/requireAuth";
 
 // 프로젝트 상세 조회 — 업무 목록(담당자 포함)과 첨부 문서까지 함께 내려준다.
 // assignee는 필요한 필드만 select해서 비밀번호 같은 민감 정보가 응답에 섞이지 않게 한다.
@@ -9,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { id } = await params;
     const project = await prisma.project.findUnique({
       where: { id },

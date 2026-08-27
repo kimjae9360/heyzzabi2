@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
-// 이 앱은 서버 세션이 없고 클라이언트(useAuth)가 이미 아는 user.id를 쿼리로 넘기는 방식을
-// 다른 라우트(예: /api/tasks?assigneeId=)에서도 그대로 쓰고 있어 여기서도 같은 패턴을 따른다.
+// 예전엔 서버 세션이 없어 클라이언트가 보낸 userId 쿼리를 그대로 믿었다 — 로그인 없이도,
+// 혹은 로그인해서도 남의 userId를 넣으면 그 사람의 알림을 그대로 읽을 수 있었다(실제 버그).
+// 세션이 생긴 지금은 쿼리의 userId를 무시하고 항상 로그인한 본인 것만 조회한다.
 export async function GET(request: NextRequest) {
-  const userId = request.nextUrl.searchParams.get("userId");
-  if (!userId) {
-    return NextResponse.json({ error: "userId는 필수입니다." }, { status: 400 });
-  }
+  const { session, error: authError } = await requireAuth();
+  if (authError) return authError;
 
   const notifications = await prisma.notification.findMany({
-    where: { userId },
+    where: { userId: session!.userId },
     orderBy: { createdAt: "desc" },
     take: 30,
   });

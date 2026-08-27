@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
-// 대시보드 통계 조회. scope=me&userId=... 로 호출하면 "내가 담당한 업무"만 집계하는
+// 대시보드 통계 조회. scope=me 로 호출하면 "내가 담당한 업무"만 집계하는
 // 개인용(팀원) 대시보드가 되고, 파라미터가 없으면 프로젝트 전체를 집계하는 PM용
 // 팀 대시보드가 된다. 이후 로직 전반에서 taskWhere를 공통으로 재사용해 두 모드를 분기한다.
 export async function GET(request: Request) {
   try {
+    const { session, error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const now = new Date();
     const { searchParams } = new URL(request.url);
     const scope = searchParams.get("scope"); // "me" for personal (non-PM) view
-    const userId = searchParams.get("userId");
-    const isPersonal = scope === "me" && !!userId;
+    // 예전엔 클라이언트가 보낸 userId 쿼리를 그대로 믿었다 — 로그인한 사람이 다른 사람의
+    // userId를 넣어 그 사람의 개인 대시보드를 훔쳐볼 수 있었다. 항상 세션의 본인 id를 쓴다.
+    const userId = session!.userId;
+    const isPersonal = scope === "me";
     const taskWhere = isPersonal ? { assigneeId: userId } : {};
 
     // 아래 쿼리들은 서로 의존성이 없으므로 Promise.all로 병렬 실행해 응답 시간을 줄인다.

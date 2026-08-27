@@ -44,6 +44,18 @@ export async function POST(
       return NextResponse.json({ error: "문서를 찾을 수 없습니다." }, { status: 404 });
     }
 
+    // 이 회의록을 시작한 사람만 AI 기획서/요구사항정의서 생성을 실행할 수 있다.
+    // 예전엔 역할 제한이 전혀 없어서, PM이 팀원이 막 등록한 회의록을 대신 "생성"하면
+    // (PM 실행 = 자동승인 로직과 맞물려) 정작 작성자가 검토조차 못 해보고 바로 승인 상태가
+    // 되어버리는 문제가 있었다(실제 버그 보고됨). authorId가 없는 문서는 이 필드가 생기기
+    // 전(2026-08-27 이전)의 레거시 데이터라 작성자를 알 수 없으므로 기존처럼 제한하지 않는다.
+    if (doc.authorId && doc.authorId !== session!.userId) {
+      return NextResponse.json(
+        { error: "다른 사용자가 시작한 회의록입니다. 작성자 본인만 생성할 수 있습니다." },
+        { status: 403 }
+      );
+    }
+
     const project = await prisma.project.findUnique({ where: { id: projectId }, select: { agentConfig: true } });
     const agentConfig = parseAgentConfig(project?.agentConfig);
 
@@ -61,10 +73,31 @@ export async function POST(
           {
             role: "system",
             content:
-              "당신은 전문 서비스 기획자입니다. 제공된 회의록/메모를 기반으로 '프로젝트 기획서' 초안 1개를 작성합니다.\n\n" +
+              "당신은 10년차 시니어 서비스 기획자입니다. 제공된 회의록/메모를 근거로, 실무팀이 별도 질문 없이 " +
+              "바로 다음 단계(요구사항정의서 작성)로 넘어갈 수 있는 수준으로 구체적인 '프로젝트 기획서'를 작성합니다.\n\n" +
               NO_HALLUCINATION_RULE + "\n\n" +
-              "다음 JSON 스키마로만 응답하라 (다른 텍스트 금지):\n" +
-              `{"background": "배경 및 목적", "target": "타겟 사용자", "features": [{"name": "기능명", "description": "설명"}], "expectedEffect": "기대 효과", "milestones": [{"name": "마일스톤", "date": "날짜/시기"}], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
+              "[작성 원칙 — 반드시 지켜라]\n" +
+              "1) 어떤 항목도 한두 문장으로 뭉뚱그리지 마라. 회의록에 흩어져 있는 배경/이유/맥락/제약을 빠짐없이 찾아 " +
+              "통합·구조화해 각 항목을 최소 3~5문장 이상의 완결된 문단으로 작성하라. 단 '구체적으로 쓰라'는 것은 " +
+              "원본에 있는 정보를 빠짐없이 담으라는 뜻이지, 원본에 없는 수치·일정·기술스택을 새로 지어내라는 뜻이 아니다.\n" +
+              "2) background(배경 및 목적): (a) 회의록에서 확인되는 현재 상황/문제의식이 있다면 그것부터 서술하고, " +
+              "(b) 왜 지금 이 프로젝트가 필요한지, (c) 이를 통해 궁극적으로 달성하려는 목적까지 하나의 문단으로 엮어라.\n" +
+              "3) target(타겟 사용자): 회의록에서 유추 가능한 실제 사용 주체(내부 특정 부서/고객/특정 역할 등)와 " +
+              "그들이 이 기능으로 해결하려는 불편함(페인포인트)을 함께 서술하라. 명시가 없으면 기능의 성격에서 합리적으로 " +
+              "유추 가능한 범위까지만 쓰고, 근거 없는 인구통계 수치·연령대 등은 절대 만들지 마라.\n" +
+              "4) features(주요 기능): 회의록에 언급된 기능/요구사항을 하나도 빠짐없이 항목화하라 — 세 가지가 언급됐는데 " +
+              "두 개만 뽑는 식으로 누락하면 안 된다. 각 description은 '무엇을 하는 기능인지 + 왜 필요한지(맥락) + " +
+              "회의록에 언급된 동작 방식·조건·제약'을 모두 포함해 최소 3문장 이상으로 작성하라. priority는 회의록에서 " +
+              "'최우선/필수/반드시/먼저' 등으로 강조됐으면 '필수', '있으면 좋음/추후/선택적으로/여유되면' 등으로 " +
+              "언급됐으면 '선택', 그 외 일반적으로 언급된 기능은 '권장'으로 판단하라.\n" +
+              "5) expectedEffect(기대 효과): 프로젝트 완료 후 생기는 변화를 배경/목적과 연결지어 구체적으로 서술하라. " +
+              "회의록에 명시된 목표 수치가 있으면 그대로 인용하고, 없으면 정성적으로만 서술하라(수치를 지어내지 마라).\n" +
+              "6) risks(리스크 및 고려사항): 회의록에서 언급된 제약사항·우려·외부 의존성(예: 기존 시스템 유지 필요, " +
+              "특정 팀과 협의 필요 등)이 있으면 정리하고, 전혀 없으면 빈 문자열(\"\")로 둬라. 리스크를 지어내지 마라.\n" +
+              "7) successMetrics(성공 지표): 회의록에 목표 수치나 판단 기준(런칭일, 전환율, 처리시간 등)이 명시된 " +
+              "경우에만 정리하고, 없으면 빈 문자열(\"\")로 둬라.\n\n" +
+              "다음 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
+              `{"background": "...", "target": "...", "features": [{"name": "기능명", "description": "3문장 이상 상세 설명", "priority": "필수|권장|선택"}], "expectedEffect": "...", "risks": "...", "successMetrics": "...", "milestones": [{"name": "마일스톤", "date": "날짜/시기"}], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
               "원본에 일정 관련 언급이 없으면 milestones는 빈 배열로 둔다. features는 원본에서 확인되는 기능만 포함한다. " +
               "원본에 '프로젝트 기간' 또는 명확한 시작일~종료일이 YYYY-MM-DD 형식으로 명시된 경우에만 projectPeriod를 채우고, " +
               "그렇지 않으면 start와 end 모두 빈 문자열로 둔다(추측하거나 오늘 날짜로 채우지 마라)."
@@ -73,7 +106,19 @@ export async function POST(
         ],
       });
 
-      const proposalDoc: ProposalDoc = JSON.parse(completion.choices[0].message.content || "{}");
+      const rawProposal = JSON.parse(completion.choices[0].message.content || "{}");
+      // 모델이 새 필드(priority/risks/successMetrics)를 가끔 빠뜨려도 화면이 죽지 않도록
+      // 안전한 기본값으로 정규화한다 — 프롬프트로 강제하는 것과 별개의 방어선.
+      const proposalDoc: ProposalDoc = {
+        ...rawProposal,
+        features: (rawProposal.features || []).map((f: any) => ({
+          name: f?.name ?? "",
+          description: f?.description ?? "",
+          priority: ["필수", "권장", "선택"].includes(f?.priority) ? f.priority : "권장",
+        })),
+        risks: rawProposal.risks ?? "",
+        successMetrics: rawProposal.successMetrics ?? "",
+      };
 
       await prisma.projectDocument.update({
         where: { id: doc.id },
@@ -102,20 +147,54 @@ export async function POST(
           {
             role: "system",
             content:
-              "당신은 시스템 분석가(SA)입니다. 제공된 기획서(JSON)를 바탕으로 개발자가 구현할 수 있는 수준의 " +
-              "'요구사항 정의서'를 표 형태의 항목 목록으로 작성합니다.\n\n" +
+              "당신은 10년차 시스템 분석가(SA)입니다. 제공된 기획서(JSON)를 바탕으로, 개발자가 추가 질문 없이 " +
+              "바로 구현에 착수할 수 있는 수준으로 상세한 '요구사항정의서'를 표 형태의 항목 목록으로 작성합니다.\n\n" +
               NO_HALLUCINATION_RULE + "\n\n" +
-              "다음 JSON 스키마로만 응답하라 (다른 텍스트 금지):\n" +
-              `{"items": [{"id": "FR-01-001", "category": "대분류", "subCategory": "중분류", "name": "요구사항명", "description": "기능설명", "note": "비고"}, ...]}\n` +
-              "id는 FR-01-001부터 순서대로 번호를 매긴다. 기획서에 없는 기능을 추가하지 말고, 있는 내용만 정리한다."
+              "[작성 원칙 — 반드시 지켜라]\n" +
+              "1) 기획서 features 배열의 기능 각각을 최소 1개, 대개 2~4개의 구현 단위 요구사항으로 분해하라. " +
+              "예: '소셜 로그인'이라는 기능 하나는 '카카오 로그인 연동', '구글 로그인 연동', '최초 로그인 시 " +
+              "회원정보 매핑' 처럼 별개의 요구사항으로 쪼갤 수 있다. 기능 하나를 요구사항 1개로 뭉뚱그리지 마라.\n" +
+              "2) description(기능설명): 이 요구사항이 정확히 어떤 동작을 해야 하는지 개발자가 바로 구현 가능한 " +
+              "수준으로 최소 2~3문장 이상 서술하라. 기획서에서 유추 가능하면 조건 분기·예외 상황(입력값이 비었을 때, " +
+              "실패했을 때 등)까지 포함하라. 단 기획서에 없는 구체적 수치·기술스택·API명을 사실처럼 지어내지 마라 — " +
+              "'입력값 검증 후 저장한다' 같은 합리적 일반 원칙 서술은 되지만, 없는 사실의 단정은 안 된다.\n" +
+              "3) priority(우선순위)는 '상'/'중'/'하' 중 정확히 하나. 기획서에서 priority가 '필수'인 기능에서 " +
+              "파생된 요구사항은 원칙적으로 '상', '권장' 기능에서 파생됐으면 '중', '선택' 기능에서 파생됐으면 '하'를 " +
+              "기본으로 하되, 다른 요구사항의 선행조건(예: 로그인 없이는 다른 기능 자체가 불가능)이면 한 단계 올려라.\n" +
+              "4) relatedFeature: 이 요구사항이 어느 기획서 기능(features[].name)에서 파생됐는지 그 기능명을 그대로 적어라.\n" +
+              "5) inputOutput(입력/처리/출력): '무엇이 입력되고 → 어떤 처리가 일어나고 → 무엇이 출력/저장되는지'를 " +
+              "화살표나 단계로 요약하라. 예: '이메일/비밀번호 입력 → 서버 인증 → 성공 시 세션 발급 후 대시보드 이동'.\n" +
+              "6) acceptanceCriteria(수용 기준): 이 요구사항이 '완료됐다'고 판단할 구체적이고 검증 가능한 조건을 " +
+              "1~3개 나열하라. '정상 동작한다' 같은 막연한 표현 대신 '카카오 로그인 버튼 클릭 시 카카오 인증 화면으로 " +
+              "이동하고, 인증 성공 시 대시보드로 리다이렉트된다'처럼 구체적으로 쓰라. 시간/수치 기준은 기획서에 근거가 " +
+              "있을 때만 숫자를 쓰고, 없으면 정성적 기준으로 서술하라(숫자를 지어내지 마라).\n" +
+              "7) note(비고): 구현 시 참고할 제약사항·의존관계가 있으면 적고, 없으면 빈 문자열로 둬라.\n\n" +
+              "다음 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
+              `{"items": [{"id": "FR-01-001", "category": "대분류", "subCategory": "중분류", "name": "요구사항명", "description": "구현 가능한 수준의 상세 설명", "priority": "상|중|하", "relatedFeature": "기획서 기능명", "inputOutput": "입력→처리→출력 요약", "acceptanceCriteria": "완료 판단 기준", "note": "비고"}, ...]}\n` +
+              "id는 FR-01-001부터 순서대로 번호를 매긴다(대분류가 바뀌면 두 번째 숫자를 올려도 된다: FR-02-001). " +
+              "기획서에 없는 기능을 새로 추가하지 말고, 기획서에 있는 내용을 개발 가능한 단위로 충실히 분해·구체화하라."
           },
           { role: "user", content: doc.proposalContent }
         ],
       });
 
       const parsed = JSON.parse(completion.choices[0].message.content || "{}");
-      // 모델이 items를 빠뜨려도 undefined가 아니라 빈 배열로 정규화해 프론트에서 안전하게 map할 수 있게 한다
-      const reqSpecDoc: ReqSpecDoc = { items: parsed.items || [] };
+      // 모델이 items나 새 필드(priority 등)를 가끔 빠뜨려도 화면이 죽지 않도록 안전한 기본값으로
+      // 정규화한다 — 프롬프트로 강제하는 것과 별개의 방어선.
+      const reqSpecDoc: ReqSpecDoc = {
+        items: (parsed.items || []).map((row: any) => ({
+          id: row?.id ?? "",
+          category: row?.category ?? "",
+          subCategory: row?.subCategory ?? "",
+          name: row?.name ?? "",
+          description: row?.description ?? "",
+          priority: ["상", "중", "하"].includes(row?.priority) ? row.priority : "중",
+          relatedFeature: row?.relatedFeature ?? "",
+          inputOutput: row?.inputOutput ?? "",
+          acceptanceCriteria: row?.acceptanceCriteria ?? "",
+          note: row?.note ?? "",
+        })),
+      };
 
       await prisma.projectDocument.update({
         where: { id: doc.id },

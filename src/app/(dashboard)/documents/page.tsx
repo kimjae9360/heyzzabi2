@@ -35,6 +35,8 @@ type ProjectDocument = {
   reqSpecRejectReason: string | null;
   meetingDate: string | null;
   updatedAt: string;
+  // 이 회의록을 등록한 사용자 id. 2026-08-27 이전 데이터는 없어 null일 수 있다(레거시).
+  authorId: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; className: string; icon: any }> = {
@@ -136,18 +138,26 @@ export default function DocumentsPage() {
   // autoApprove 로직 참고), 목록에 DRAFT 단계로 남아있는 문서는 전부 아직 검토 요청 전인
   // 다른 팀원의 작업 중 문서다. PM이 할 수 있는 액션이 없는 상태라 굳이 목록에 섞여있을
   // 필요가 없어서 PM 화면에서는 제외한다(작성자 본인에게는 계속 보임).
+  //
+  // 2026-08-27 수정: 예전엔 "content가 없으면 PM 본인이 방금 만든 새 문서"라고 가정했는데,
+  // 이 가정이 팀원이 막 등록한(아직 생성 버튼을 안 누른) 새 회의록에도 똑같이 적용돼 PM
+  // 목록에 그대로 노출됐다 — 그 상태에서 PM이 "기획서 생성"을 누르면 작성자가 검토해보기도
+  // 전에 곧장 승인 처리되는 게 이번에 보고된 실제 버그였다. authorId로 정확히 구분한다.
   const allDocuments: ProjectDocument[] = project?.documents ?? [];
   const isVisibleToViewer = (d: ProjectDocument) => {
     if (!isPM) return true;
+    // authorId가 없는 문서는 이 필드가 생기기 전(레거시) 데이터라 작성자를 알 수 없으므로
+    // 기존처럼 항상 노출한다.
+    if (!d.authorId) return true;
+    // PM 본인이 만든 문서는 항상 보인다(방금 만들어 아직 생성 버튼을 안 눌렀어도 마찬가지).
+    if (d.authorId === user?.id) return true;
     const stage = stageOf(d);
     // stage가 "taskAssignment"라는 것 자체가 이미 reqSpecStatus === APPROVED라는 뜻이라
     // (stageOf 정의 참고) 그 경우도 reqSpecStatus 기준으로 판단하면 항상 DRAFT가 아니게 된다.
     const status = stage === "proposal" ? d.proposalStatus : d.reqSpecStatus;
     const content = stage === "proposal" ? d.proposalContent : d.reqSpecContent;
-    // 아직 AI가 아무 내용도 생성하지 않은 새 문서는 "남이 검토 요청 전인 초안"이 아니라
-    // PM 본인이 방금 만들어서 이제 막 생성 버튼을 눌러야 하는 문서다 — content 유무로
-    // 구분하지 않으면 PM이 새 문서를 만들자마자 목록에서 사라져버린다(실제 버그 보고됨).
-    if (!content) return true;
+    // 다른 사람이 시작했고 아직 AI 생성 전이면 "검토 요청 전인 남의 초안"이므로 숨긴다.
+    if (!content) return false;
     return status !== "DRAFT";
   };
   const documents: ProjectDocument[] = allDocuments.filter(isVisibleToViewer);
@@ -624,6 +634,7 @@ export default function DocumentsPage() {
                   doc={selectedDoc}
                   type="proposal"
                   isPM={isPM}
+                  currentUserId={user?.id}
                   busy={busy}
                   onGenerate={() => handleGenerate(selectedDoc, "proposal")}
                   onSubmitReview={() => handleSubmitReview(selectedDoc, "proposal")}
@@ -639,6 +650,7 @@ export default function DocumentsPage() {
                   doc={selectedDoc}
                   type="reqSpec"
                   isPM={isPM}
+                  currentUserId={user?.id}
                   busy={busy}
                   onGenerate={() => handleGenerate(selectedDoc, "reqSpec")}
                   onSubmitReview={() => handleSubmitReview(selectedDoc, "reqSpec")}
@@ -731,9 +743,9 @@ export default function DocumentsPage() {
 }
 
 function DocDetail({
-  doc, type, isPM, busy, onGenerate, onSubmitReview, onApprove, onReject, onSaveRawContent, onSaveDocContent, onGenerateTasks,
+  doc, type, isPM, currentUserId, busy, onGenerate, onSubmitReview, onApprove, onReject, onSaveRawContent, onSaveDocContent, onGenerateTasks,
 }: {
-  doc: ProjectDocument; type: DocType; isPM: boolean; busy: string | null;
+  doc: ProjectDocument; type: DocType; isPM: boolean; currentUserId: string | undefined; busy: string | null;
   onGenerate: () => void;
   onSubmitReview: () => void; onApprove: () => void; onReject: () => void;
   onSaveRawContent: (rawContent: string) => void;
@@ -746,6 +758,9 @@ function DocDetail({
   // API가 상태값을 검증하지 않아 이론상 STATUS_META에 없는 값이 저장될 수 있다(QA에서 실제로 발견됨) —
   // 그런 경우에도 화면이 죽지 않도록 DRAFT로 방어적으로 대체한다.
   const meta = STATUS_META[status] ?? STATUS_META.DRAFT;
+  // 이 회의록을 시작한 사람만 AI 생성/재생성을 실행할 수 있다. authorId가 없는 문서는
+  // 이 필드가 생기기 전(레거시) 데이터라 작성자를 알 수 없으므로 기존처럼 제한하지 않는다.
+  const canGenerate = !doc.authorId || doc.authorId === currentUserId;
   const canGenerateReqSpec = type === "reqSpec" ? doc.proposalStatus === "APPROVED" : true;
   const dateLabel = new Date(doc.updatedAt).toLocaleDateString("ko-KR");
 
@@ -923,8 +938,20 @@ function DocDetail({
       {/* 위 참고 박스(원본 회의록 / 기획서 원본)와 시각적으로 비슷해서, 지금 보고 있는 게
           어느 문서인지 헷갈린다는 피드백이 있어 실제 생성 문서 위에 이름표를 붙인다. */}
       <p className="text-sm text-muted-foreground font-semibold">{TAB_LABEL[type]}</p>
-      <div className="border border-border rounded-xl overflow-hidden">
-        <div className="max-h-[520px] overflow-y-auto bg-black/5 dark:bg-black/20">
+      {/* A4 용지 느낌의 프리뷰: 폭/높이는 A4 비율(가로:세로 = 1:√2)을 최대치로 두고, 내용이
+          그보다 적으면 상자가 내용 크기에 맞춰 줄어든다(max-w/max-h만 걸고 고정 크기를 주지
+          않음). 기획서는 세로(A4 세로) 기준이라 넘치면 위아래로, 요구사항정의서는 표라 컬럼이
+          많아지기 쉬우므로 가로(A4 가로) 기준으로 두고 넘치면 좌우로 스크롤한다(표 자체의
+          overflow-x-auto가 실제 가로 스크롤을 담당 — ReqSpecTemplate 참고). */}
+      <div className="border border-border rounded-xl overflow-hidden bg-black/10 dark:bg-black/30 p-4 flex justify-center">
+        <div
+          className={cn(
+            "bg-white dark:bg-white",
+            type === "proposal"
+              ? "w-full max-w-[840px] max-h-[1190px] overflow-y-auto"
+              : "w-full max-w-[1190px] max-h-[840px] overflow-y-auto"
+          )}
+        >
           {content && parsedContent ? (
             <div id="print-area">
               {type === "proposal" ? (
@@ -949,6 +976,8 @@ function DocDetail({
             <div className="p-10 text-center text-muted-foreground text-sm">
               {!canGenerateReqSpec
                 ? REQSPEC_BLOCK_MESSAGE[doc.proposalStatus] || "기획서가 승인되면 요구사항정의서를 생성할 수 있습니다."
+                : !canGenerate
+                ? "다른 사용자가 시작한 회의록입니다. 작성자 본인만 생성할 수 있습니다."
                 : `AI가 아직 ${TAB_LABEL[type]}를 생성하지 않았습니다.`}
             </div>
           )}
@@ -973,8 +1002,10 @@ function DocDetail({
           </div>
         )}
 
-        {/* 문서를 누가 만들었든(PM 포함) 그 자리에서 바로 AI 에이전트를 실행할 수 있어야 하므로 역할 제한을 두지 않는다 */}
-        {!content && canGenerateReqSpec && (
+        {/* 2026-08-27 수정: "누구든 실행 가능"은 의도적 설계가 아니라 실제 버그였다 — 회의록을
+            시작한 사람만 생성할 수 있다(canGenerate, authorId 기준). PM이라도 남이 시작한
+            회의록을 대신 생성하면 안 되므로 여기서 막는다. */}
+        {!content && canGenerateReqSpec && canGenerate && (
           <button
             onClick={onGenerate}
             disabled={busy === busyKey("generate")}
@@ -999,21 +1030,25 @@ function DocDetail({
 
         {content && status === "REJECTED" && !editMode && (
           <>
+            {/* 직접 수정은 PM이 반려한 본인의 판단을 그 자리에서 바로 반영하는 행위라 작성자
+                여부와 무관하게 계속 허용한다 — 새로 AI를 "재생성"하는 것과는 성격이 다르다. */}
             <button
               onClick={startEdit}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm font-bold transition-colors"
             >
               <Pencil className="w-4 h-4" /> 직접 수정
             </button>
-            <button
-              onClick={onGenerate}
-              disabled={busy === busyKey("generate")}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 text-sm font-bold hover:bg-red-500/20 disabled:opacity-50"
-            >
-              {busy === busyKey("generate") ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-              {type === "proposal" ? "기획서 재생성" : "요구사항정의서 재생성"}
-              <AgentBadge agent={type} />
-            </button>
+            {canGenerate && (
+              <button
+                onClick={onGenerate}
+                disabled={busy === busyKey("generate")}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 text-sm font-bold hover:bg-red-500/20 disabled:opacity-50"
+              >
+                {busy === busyKey("generate") ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                {type === "proposal" ? "기획서 재생성" : "요구사항정의서 재생성"}
+                <AgentBadge agent={type} />
+              </button>
+            )}
           </>
         )}
 

@@ -1,14 +1,23 @@
 ﻿import { NextResponse } from "next/server";
+import { requirePM } from "@/lib/requireAuth";
 
 // 프로젝트 설정에서 등록한 Slack Incoming Webhook이 실제로 동작하는지 확인하는
 // "연동 테스트" 엔드포인트. 실무 알림 이벤트(업무 완료 등)에서 호출되는 게 아니라,
 // 사용자가 설정 화면에서 직접 눌러서 테스트 메시지를 보내볼 때 쓰인다.
 export async function POST(req: Request) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { webhookUrl, projectId, message } = await req.json();
 
     if (!webhookUrl) {
       return NextResponse.json({ error: "Webhook URL is required" }, { status: 400 });
+    }
+    // 로그인 없이도 서버가 임의 URL로 POST를 대신 던져주는 SSRF 통로가 될 수 있었다 —
+    // 로그인(PM)을 요구하는 것과 별개로, 실제 Slack Webhook 도메인인지도 확인한다.
+    if (!/^https:\/\/hooks\.slack\.com\//.test(webhookUrl)) {
+      return NextResponse.json({ error: "Slack Webhook URL 형식이 아닙니다." }, { status: 400 });
     }
 
     // message가 없으면 기본 테스트 문구를 사용한다.

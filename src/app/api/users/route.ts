@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/passwordHash";
-import { requirePM } from "@/lib/requireAuth";
+import { requireAuth, requirePM } from "@/lib/requireAuth";
 
 // 전체 직원 목록 조회 (관리/멤버 관리 화면용). select로 password를 명시적으로 제외해 응답에 노출되지 않게 한다.
 export async function GET() {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const users = await prisma.user.findMany({
       select: {
         id: true,

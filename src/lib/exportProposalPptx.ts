@@ -39,19 +39,28 @@ export async function exportProposalPptx(doc: ProposalDoc, title: string) {
   }));
   // pptxgenjs의 rich-text 배열: 기능명은 글머리 기호(bullet)로, 설명은 한 단계 들여쓰기(indentLevel)해서
   // "기능명 - 설명" 구조가 한눈에 보이도록 구성한다.
+  const PRIORITY_COLOR: Record<string, string> = { 필수: "DC2626", 권장: "2563EB", 선택: "94A3B8" };
   const featureBullets = (doc.features || []).flatMap(f => ([
-    { text: f.name, options: { bold: true, fontSize: 14, color: TITLE_COLOR, bullet: true, breakLine: true } },
+    {
+      text: `${f.name}  [${f.priority ?? "권장"}]`,
+      options: { bold: true, fontSize: 14, color: PRIORITY_COLOR[f.priority ?? "권장"] ?? TITLE_COLOR, bullet: true, breakLine: true },
+    },
     { text: f.description, options: { fontSize: 11, color: "64748B", indentLevel: 1, breakLine: true } },
   ]));
   featureSlide.addText(featureBullets.length ? featureBullets : [{ text: "-" }], { x: 0.5, y: 1.2, w: 9, h: 4, valign: "top" });
 
   addSectionSlide("4. 기대 효과", doc.expectedEffect);
 
+  // risks/successMetrics는 원본에 근거가 없으면 빈 문자열이므로, 그럴 땐 빈 슬라이드를 만들지 않는다
+  // (milestones와 같은 패턴 — 없는 내용을 억지로 보여주지 않기 위함).
+  if (doc.risks) addSectionSlide("5. 리스크 및 고려사항", doc.risks);
+  if (doc.successMetrics) addSectionSlide("6. 성공 지표 (KPI)", doc.successMetrics);
+
   // 원본 회의록/메모에 일정 언급이 없으면 milestones가 빈 배열이므로 이 슬라이드 자체를 생략한다
   // (없는 일정을 억지로 만들어 보여주지 않기 위함).
   if (doc.milestones?.length) {
     const msSlide = pptx.addSlide();
-    msSlide.addText("5. 일정 / 마일스톤", { x: 0.5, y: 0.4, w: 9, h: 0.6, fontSize: 24, bold: true, color: ACCENT });
+    msSlide.addText("7. 일정 / 마일스톤", { x: 0.5, y: 0.4, w: 9, h: 0.6, fontSize: 24, bold: true, color: ACCENT });
     const rows: any[] = [
       [{ text: "마일스톤", options: { bold: true, fill: { color: "F1F5F9" } } }, { text: "시기", options: { bold: true, fill: { color: "F1F5F9" } } }],
       ...doc.milestones.map(m => [m.name, m.date]),

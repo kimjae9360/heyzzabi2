@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { notifyAllPMs } from "@/lib/notify";
+import { requireAuth } from "@/lib/requireAuth";
 
 // approve/reject와 동일한 패턴의 type→컬럼명 매핑
 const FIELD = { proposal: "proposalStatus", reqSpec: "reqSpecStatus" } as const;
@@ -14,6 +15,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { docId } = await params;
     const { type } = await request.json() as { type: string };
 

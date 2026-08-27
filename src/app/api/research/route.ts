@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { runDeepResearch, AIConfigError, type LocalPacketDoc } from '@/lib/openai';
+import { requireAuth } from '@/lib/requireAuth';
 
 // 저장된 리서치 보고서 목록 조회 (projectId로 특정 프로젝트만 필터링 가능).
 export async function GET(req: Request) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { searchParams } = new URL(req.url);
     const projectId = searchParams.get('projectId');
 
@@ -69,6 +73,9 @@ async function buildLocalPacket(projectId: string | null): Promise<LocalPacketDo
 // 프론트에서 "근거 부족으로 제한된 답변" 경고를 보여주는 데 쓰인다.
 export async function POST(req: Request) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const body = await req.json();
     if (!body.question || typeof body.question !== 'string') {
       return NextResponse.json({ error: '리서치 질문을 입력해 주세요.' }, { status: 400 });

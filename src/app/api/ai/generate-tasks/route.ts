@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAuth } from '@/lib/requireAuth';
 
 // API 라우트 캐싱 방지 (항상 최신 결과 반환)
 export const dynamic = 'force-dynamic';
 
+// 어느 화면에서도 호출하지 않는 라우트다(실제 파이프라인은
+// /api/projects/[id]/documents/[docId]/extract-tasks). 그런데도 로그인 검사가 없어서
+// 비로그인 상태로도 gpt-4o를 계속 호출할 수 있었다(과금 남용 경로) — 로그인만 요구해 막는다.
 // 회의록/기획서 등 임의의 텍스트(contextText)를 넣으면 업무(Task) 목록만 뽑아 돌려주는
 // 범용 생성기다. parse-meeting과 달리 프로젝트 이름/설명은 만들지 않고, DB에도 저장하지
 // 않는다 — 호출자가 결과를 미리보기하거나 직접 저장 여부를 결정하는 용도로 보인다.
 export async function POST(req: Request) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { contextText } = await req.json();

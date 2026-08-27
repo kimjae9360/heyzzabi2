@@ -1,10 +1,14 @@
 ﻿import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
+import { requireAuth } from '@/lib/requireAuth';
 
 // 채팅창을 열 때 지금까지의 대화 기록 전체를 시간순으로 내려준다(페이지네이션 없음).
 export async function GET() {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const messages = await prisma.chatMessage.findMany({
       orderBy: { createdAt: 'asc' },
     });
@@ -16,6 +20,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
     const body = await req.json();

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/requireAuth";
 
 // 기획서/요구사항정의서 각각이 독립적으로 거치는 검토 상태값 (Prisma 문자열 컬럼이라 여기서 화이트리스트로 검증)
 const VALID_DOC_STATUSES = ["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED"];
@@ -14,6 +15,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { docId } = await params;
     const body = await request.json();
     const {
@@ -79,6 +83,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; docId: string }> }
 ) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const { docId } = await params;
     const doc = await prisma.projectDocument.findUnique({ where: { id: docId } });
     if (!doc) {

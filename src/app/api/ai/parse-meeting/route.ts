@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAuth } from "@/lib/requireAuth";
 
+// "AI 기획 자동화 마법사" 폐기(PROJECT_STATUS.md 참고)와 함께 어느 화면에서도 더 이상
+// 호출하지 않는 라우트다. 로그인 검사가 없어 비로그인 상태로도 OpenAI를 호출할 수 있었다
+// (과금 남용 경로) — 로그인만 요구해 막는다.
 // 회의록 텍스트만으로 새 프로젝트의 이름/설명 초안과 초기 업무 목록을 한 번에 뽑아낸다.
 // 아직 프로젝트가 만들어지기 전 단계(예: 프로젝트 생성 폼)에서 쓰이는 라우트라 DB에는
 // 아무것도 저장하지 않고, 파싱된 JSON을 그대로 반환해 호출자가 폼을 채우도록 한다.
 export async function POST(request: Request) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     // 모듈 스코프에서 만들면 빌드 시점 페이지 데이터 수집 단계에 환경변수가 없을 때 빌드가 깨진다
     // apiKey가 없어도 일단 "dummy"로 클라이언트는 만들고, 실제 미설정 여부는 아래에서
     // 별도로 체크해 "PM에게 문의하세요" 같은 더 친절한 에러 메시지를 준다.

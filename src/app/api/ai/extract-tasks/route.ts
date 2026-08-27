@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requirePM } from "@/lib/requireAuth";
 
 // 실제 OpenAI 호출 없이 하드코딩된 목업 데이터로 동작하는 구버전 라우트다.
 // 실제 운영 파이프라인은 src/app/api/projects/[id]/documents/[docId]/extract-tasks 를 사용하며,
 // 그쪽은 승인된 요구사항정의서 + 실제 AI 호출로 업무를 생성한다. 여기는 UI 데모/초기 개발 단계의
 // 잔재로 보이므로 새 기능을 붙일 때는 이 라우트가 아니라 위 실제 파이프라인을 참고할 것.
+// (여전히 숨김 페이지 AI 관리센터에서 호출되므로 삭제하진 않되, 로그인 없이 아무나 Task를
+// 대량 생성할 수 있었던 문제는 다른 업무 생성 경로와 같은 수준(PM)으로 막는다.)
 export async function POST(req: Request) {
   try {
+    const { error: authError } = await requirePM();
+    if (authError) return authError;
+
     const { projectId, documentId, promptContext } = await req.json();
 
     if (!projectId) {
