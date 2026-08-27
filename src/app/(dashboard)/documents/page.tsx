@@ -145,6 +145,14 @@ export default function DocumentsPage() {
   // 이 가정이 팀원이 막 등록한(아직 생성 버튼을 안 누른) 새 회의록에도 똑같이 적용돼 PM
   // 목록에 그대로 노출됐다 — 그 상태에서 PM이 "기획서 생성"을 누르면 작성자가 검토해보기도
   // 전에 곧장 승인 처리되는 게 이번에 보고된 실제 버그였다. authorId로 정확히 구분한다.
+  //
+  // 2026-08-27 추가 수정: 위 수정을 "현재 단계(stageOf) 기준"으로 넣었더니, 기획서가 이미
+  // 승인된 뒤 요구사항정의서 단계로 넘어간 문서가 — 요구사항정의서 쪽엔 아직 아무 내용도 없으니 —
+  // PM 목록에서 통째로 사라지는 새 버그가 생겼다(실제 보고됨). "다른 사람의 시작 전 문서를 숨긴다"는
+  // 규칙은 기획서 자체가 없는 경우에만 의미가 있다 — 기획서가 한 번이라도 검토 단계에 들어갔다면
+  // (DRAFT를 벗어났다면) 이미 실제 진행 중인 문서이므로, 다음 단계에 아직 아무것도 없어도 계속
+  // 보여야 PM이 전체 파이프라인을 놓치지 않는다. 그래서 판단 기준을 stageOf가 아니라 항상
+  // proposalContent/proposalStatus로 고정한다.
   const allDocuments: ProjectDocument[] = project?.documents ?? [];
   const isVisibleToViewer = (d: ProjectDocument) => {
     if (!isPM) return true;
@@ -153,14 +161,12 @@ export default function DocumentsPage() {
     if (!d.authorId) return true;
     // PM 본인이 만든 문서는 항상 보인다(방금 만들어 아직 생성 버튼을 안 눌렀어도 마찬가지).
     if (d.authorId === user?.id) return true;
-    const stage = stageOf(d);
-    // stage가 "taskAssignment"라는 것 자체가 이미 reqSpecStatus === APPROVED라는 뜻이라
-    // (stageOf 정의 참고) 그 경우도 reqSpecStatus 기준으로 판단하면 항상 DRAFT가 아니게 된다.
-    const status = stage === "proposal" ? d.proposalStatus : d.reqSpecStatus;
-    const content = stage === "proposal" ? d.proposalContent : d.reqSpecContent;
-    // 다른 사람이 시작했고 아직 AI 생성 전이면 "검토 요청 전인 남의 초안"이므로 숨긴다.
-    if (!content) return false;
-    return status !== "DRAFT";
+    // 다른 사람이 시작했고 기획서조차 아직 생성 전이면 "검토 요청 전인 남의 초안"이므로 숨긴다.
+    if (!d.proposalContent) return false;
+    // 기획서에 내용은 있는데 아직 DRAFT(작성자가 검토요청을 안 보낸 상태)면 작성자의 작업
+    // 중이므로 계속 숨긴다. 그 이후(검토중/승인/반려 — 즉 한 번이라도 PM 액션이 있었던 문서)는
+    // 요구사항정의서가 아직 미생성이어도 계속 보여준다.
+    return d.proposalStatus !== "DRAFT";
   };
   const documents: ProjectDocument[] = allDocuments.filter(isVisibleToViewer);
   const hiddenDraftCount = allDocuments.length - documents.length;
