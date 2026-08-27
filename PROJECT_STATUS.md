@@ -20,7 +20,7 @@ Figma가 막힌 이후 "벤치마킹을 직접 코드로 구현" 하는 방향�
 - **cdeust/ai-prd-generator** — AI 기반 PRD(제품 요구사항 문서) 자동 생성
 - **Zackriya-Solutions/meetily** — 회의록 → 요약/액션아이템 추출
 - **Abdulbasit110/meeting-minutes-agent** — 회의록 에이전트 파이프라인
-- 로컬 `참고` 폴더에 있는 **NocoBase / OpenProject / Plane** — 칸반/WBS/직원관리 UX 참고
+- 로컬 `참고` 폴더에 있는 **NocoBase / OpenProject / Plane** — 칸반/WBS/직원관리 UX 참gi고
 
 이 레퍼런스들에서 아직 우리 쪽에 반영 안 된 아이디어(향후 검토 가치 있음):
 - PRD 버전 히스토리 diff 뷰 (ai-prd-generator)
