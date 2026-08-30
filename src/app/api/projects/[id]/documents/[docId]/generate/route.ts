@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
-import type { ProposalDoc, ReqSpecDoc } from "@/lib/documentTemplates";
+import { stripLeadingNumber, type ProposalDoc, type ReqSpecDoc } from "@/lib/documentTemplates";
 import { parseAgentConfig } from "@/lib/agentConfig";
 import { requireAuth } from "@/lib/requireAuth";
 
@@ -95,9 +95,11 @@ export async function POST(
               "'최우선/필수/반드시/먼저' 등으로 강조됐으면 '필수', '있으면 좋음/추후/선택적으로/여유되면' 등으로 " +
               "언급됐으면 '선택', 그 외 일반적으로 언급된 기능은 '권장'으로 판단하라.\n" +
               "6) userScenario(사용자 시나리오): 대표 사용자가 이 기능들을 실제로 사용하는 흐름을 처음부터 끝까지 " +
-              "번호가 매겨진 단계별 순서로 서술하라(예: '1. 사용자가 로그인한다', '2. 대시보드에서 새 카드를 만든다' ...). " +
-              "각 단계는 features에 있는 기능들을 실제 사용 순서대로 엮은 것이어야 하며, 회의록에 없는 기능을 " +
-              "시나리오에만 새로 등장시키지 마라. 최소 4단계 이상으로 구체적으로 작성하라.\n" +
+              "단계별 순서로 배열의 각 항목에 한 단계씩 담아라(예: [\"사용자가 로그인한다\", \"대시보드에서 새 카드를 " +
+              "만든다\", ...]). 화면에서 번호는 자동으로 매겨지므로 각 항목 문자열 앞에 '1.'이나 '1)' 같은 번호를 " +
+              "직접 쓰지 마라 — 단계 내용만 적어라. 각 단계는 features에 있는 기능들을 실제 사용 순서대로 엮은 " +
+              "것이어야 하며, 회의록에 없는 기능을 시나리오에만 새로 등장시키지 마라. 최소 4단계 이상으로 구체적으로 " +
+              "작성하라.\n" +
               "7) techStackConstraints(기술 스택 및 제약사항): 회의록에 언급된 기술 스택·플랫폼·연동 대상 " +
               "(예: 특정 프레임워크, 기존 시스템 연동, 모바일/웹 여부)과 제약사항·우려·외부 의존성(예: 기존 시스템 유지 " +
               "필요, 특정 팀과 협의 필요, 예산·일정 제약 등)을 함께 정리하라. 둘 다 회의록에 전혀 근거가 없으면 " +
@@ -107,7 +109,7 @@ export async function POST(
               "'결정했다/하기로 했다/확정' 등으로 언급된 것만 포함하고, 단순히 논의만 된 아이디어는 넣지 마라. " +
               "결정된 사항이 전혀 없으면 빈 배열로 둬라.\n\n" +
               "다음 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
-              `{"projectOverview": "...", "problemDefinition": "...", "target": "...", "features": [{"name": "기능명", "description": "3문장 이상 상세 설명", "priority": "필수|권장|선택"}], "userScenario": ["1. ...", "2. ...", "3. ..."], "techStackConstraints": "...", "finalDecisions": ["...", "..."], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
+              `{"projectOverview": "...", "problemDefinition": "...", "target": "...", "features": [{"name": "기능명", "description": "3문장 이상 상세 설명", "priority": "필수|권장|선택"}], "userScenario": ["번호 없이 단계 내용만", "..."], "techStackConstraints": "...", "finalDecisions": ["...", "..."], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
               "features는 원본에서 확인되는 기능만 포함한다. 원본에 '프로젝트 기간' 또는 명확한 시작일~종료일이 " +
               "YYYY-MM-DD 형식으로 명시된 경우에만 projectPeriod를 채우고, 그렇지 않으면 start와 end 모두 빈 문자열로 " +
               "둔다(추측하거나 오늘 날짜로 채우지 마라)."
@@ -129,8 +131,13 @@ export async function POST(
           description: f?.description ?? "",
           priority: ["필수", "권장", "선택"].includes(f?.priority) ? f.priority : "권장",
         })),
+        // 화면의 <ol>이 번호를 따로 매기므로, 모델이 프롬프트 지시를 무시하고 "1. ..."처럼
+        // 항목 앞에 직접 번호를 붙여 반환해도 저장 시점에 벗겨낸다(화면 렌더 시점에도 한 번 더
+        // 벗겨내지만, 저장 자체를 깨끗하게 해둬야 엑셀/PPTX 내보내기 등에서도 번호가 안 겹친다).
         userScenario: Array.isArray(rawProposal.userScenario)
-          ? rawProposal.userScenario.filter((s: any) => typeof s === "string" && s.trim())
+          ? rawProposal.userScenario
+              .filter((s: any) => typeof s === "string" && s.trim())
+              .map((s: string) => stripLeadingNumber(s))
           : [],
         techStackConstraints: rawProposal.techStackConstraints ?? "",
         finalDecisions: Array.isArray(rawProposal.finalDecisions)

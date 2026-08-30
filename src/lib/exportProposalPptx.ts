@@ -1,4 +1,4 @@
-import type { ProposalDoc } from "@/lib/documentTemplates";
+import { stripLeadingNumber, type ProposalDoc } from "@/lib/documentTemplates";
 
 // FR-05-009: 기획서는 PPTX 형식으로 다운로드 가능해야 함
 // ProposalDoc은 documentTemplates.ts에 정의된 단일 기획서 스키마이므로, AI가 채운 내용이든
@@ -46,12 +46,13 @@ export async function exportProposalPptx(doc: ProposalDoc, title: string) {
   ]));
   featureSlide.addText(featureBullets.length ? featureBullets : [{ text: "-" }], { x: 0.5, y: 1.2, w: 9, h: 4, valign: "top" });
 
-  // 사용자 시나리오는 원본 문자열에 이미 "1. ..." 번호가 붙어 있으므로 그대로 줄바꿈해서 나열한다.
+  // 저장된 문자열엔 번호가 없으므로(화면의 <ol>이 번호를 매기는 것과 동일한 이유로 여기서도
+  // stripLeadingNumber로 혹시 남아있을 옛 번호를 벗겨낸 뒤) 슬라이드에서 직접 번호를 매긴다.
   if (doc.userScenario?.length) {
     const scenarioSlide = pptx.addSlide();
     scenarioSlide.addText("5. 사용자 시나리오", { x: 0.5, y: 0.4, w: 9, h: 0.6, fontSize: 24, bold: true, color: ACCENT });
-    const scenarioBullets = doc.userScenario.map(step => ({
-      text: step,
+    const scenarioBullets = doc.userScenario.map((step, i) => ({
+      text: `${i + 1}. ${stripLeadingNumber(step)}`,
       options: { fontSize: 13, color: TITLE_COLOR, breakLine: true, paraSpaceAfter: 6 },
     }));
     scenarioSlide.addText(scenarioBullets, { x: 0.5, y: 1.2, w: 9, h: 4, valign: "top" });

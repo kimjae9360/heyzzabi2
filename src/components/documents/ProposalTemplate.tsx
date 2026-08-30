@@ -1,4 +1,4 @@
-import type { FeaturePriority, ProposalDoc, ProposalFeature } from "@/lib/documentTemplates";
+import { stripLeadingNumber, type FeaturePriority, type ProposalDoc, type ProposalFeature } from "@/lib/documentTemplates";
 import { Trash2, Plus } from "lucide-react";
 
 const inputCls = "w-full bg-black/5 border border-black/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
@@ -164,7 +164,7 @@ export function ProposalTemplate({
               <div key={i} className="flex gap-2 items-center">
                 <span className="text-sm text-gray-400 w-5 shrink-0 text-right">{i + 1}.</span>
                 <input
-                  value={step}
+                  value={stripLeadingNumber(step)}
                   onChange={e => setListItem("userScenario", i, e.target.value)}
                   placeholder="시나리오 단계"
                   className={inputCls}
@@ -181,7 +181,7 @@ export function ProposalTemplate({
         ) : doc.userScenario?.length ? (
           <ol className="space-y-1.5 list-decimal list-inside">
             {doc.userScenario.map((step, i) => (
-              <li key={i} className="whitespace-pre-wrap">{step}</li>
+              <li key={i} className="whitespace-pre-wrap">{stripLeadingNumber(step)}</li>
             ))}
           </ol>
         ) : <p className="text-gray-400">-</p>}

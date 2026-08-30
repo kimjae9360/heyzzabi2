@@ -73,6 +73,15 @@ export type ReqSpecDoc = {
 // 화면/엑스포트에서 쓸 수 있는 타입 객체로 안전하게 되돌린다. raw가 없거나 JSON이 깨져 있어도
 // (예: AI 응답 파싱 실패, 마이그레이션 이전 데이터) 예외를 던지지 않고 null/빈 배열을 반환해
 // 호출부가 별도 try/catch 없이 "문서 없음"으로 처리할 수 있게 한다.
+// userScenario 배열은 AI가 가끔(프롬프트로 금지해도) 각 항목 앞에 "1. ", "2)" 같은 번호를
+// 직접 써서 반환한다 — 화면에서는 <ol>이 번호를 따로 매기므로 그대로 두면 "1. 1. 사용자가..."처럼
+// 번호가 두 번 찍힌다(실제 보고된 버그). 생성 시점(route.ts)과 화면 렌더 시점(ProposalTemplate)
+// 양쪽에서 같은 함수로 벗겨내 — 새로 생성되는 문서뿐 아니라 이미 번호가 박혀 저장된 기존
+// 문서도 화면에서는 항상 정상적으로 보이게 한다.
+export function stripLeadingNumber(s: string): string {
+  return s.replace(/^\s*\d+\s*[.)]\s*/, "").trim();
+}
+
 export function parseProposalDoc(raw: string | null): ProposalDoc | null {
   if (!raw) return null;
   try {
