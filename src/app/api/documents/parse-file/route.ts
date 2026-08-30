@@ -18,6 +18,13 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
     }
+    // 크기 제한이 전혀 없어서 아무 로그인 사용자나 매우 큰 파일을 올려 전체를 메모리에 버퍼링
+    // 시키고 CPU를 많이 쓰는 파싱(mammoth/pdf-parse/hwp.js)을 태울 수 있었다(전체 점검에서
+    // 발견된 자원 고갈 우려) — 회의록 첨부치고 15MB면 충분히 넉넉하다.
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "파일 크기는 15MB를 초과할 수 없습니다." }, { status: 400 });
+    }
 
     const name = file.name.toLowerCase();
     const buffer = Buffer.from(await file.arrayBuffer());

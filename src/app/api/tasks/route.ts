@@ -56,6 +56,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // 아래 PATCH와 같은 화이트리스트 — 없으면 임의의 문자열이 status로 저장돼 칸반 보드
+    // 어느 컬럼에도 걸리지 않는 "보이지 않는" 업무가 생길 수 있었다(실제 발견된 문제).
+    const validStatuses = ["BACKLOG", "PENDING_APPROVAL", "IN_PROGRESS", "DONE", "CANCELLED"];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: "Invalid status value." }, { status: 400 });
+    }
+
     const newTask = await prisma.task.create({
       data: {
         title,

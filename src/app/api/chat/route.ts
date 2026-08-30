@@ -28,8 +28,13 @@ export async function POST(req: Request) {
     const body = await req.json();
     const userMessageContent = body.message;
 
-    if (!userMessageContent) {
+    if (!userMessageContent || typeof userMessageContent !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+    // 길이 제한이 없어서 매우 긴 메시지를 보내면 DB에 그대로 저장되고, 이후 대화에서 컨텍스트로
+    // 계속 재사용돼(previousMessages) 토큰 비용이 눈덩이처럼 커질 수 있었다(전체 점검에서 발견).
+    if (userMessageContent.length > 8000) {
+      return NextResponse.json({ error: '메시지는 8000자를 초과할 수 없습니다.' }, { status: 400 });
     }
 
     // Save user message to DB

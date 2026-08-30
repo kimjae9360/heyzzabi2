@@ -824,10 +824,13 @@ function DocDetail({
   const canGenerate = !doc.authorId || doc.authorId === currentUserId;
   const canGenerateReqSpec = type === "reqSpec" ? doc.proposalStatus === "APPROVED" : true;
   // 목록(isVisibleToViewer)에는 보여야 하지만(파이프라인 추적용), 작성자가 아직 검토요청을
-  // 보내지 않은(DRAFT) 콘텐츠 "본문"까지 PM에게 미리 보여주면 안 된다 — 검토요청 전 문서를
-  // 목록에서 통째로 숨기는 것과 같은 원칙을, 승인된 기획서 뒤에 이어지는 요구사항정의서처럼
-  // 목록엔 남아있지만 아직 DRAFT인 콘텐츠에도 똑같이 적용한다(실제 보고된 문제).
-  const contentHiddenFromReviewer = isPM && !canGenerate && status === "DRAFT";
+  // 보내지 않은(DRAFT) 콘텐츠 "본문"까지 미리 보여주면 안 된다 — 검토요청 전 문서를 목록에서
+  // 통째로 숨기는 것과 같은 원칙을, 승인된 기획서 뒤에 이어지는 요구사항정의서처럼 목록엔
+  // 남아있지만 아직 DRAFT인 콘텐츠에도 똑같이 적용한다(실제 보고된 문제). 처음엔 PM 전용으로만
+  // 막았었는데, 그러면 PM이 아닌 동료끼리는 서로의 검토요청 전 초안이 그대로 다 보였다(전체
+  // 점검에서 발견) — canGenerate(=본인 문서인지)만으로 판단하면 PM/동료 구분 없이 작성자
+  // 본인이 아닌 모든 사람에게 동일하게 적용된다.
+  const contentHiddenFromReviewer = !canGenerate && status === "DRAFT";
   const dateLabel = new Date(doc.updatedAt).toLocaleDateString("ko-KR");
 
   const busyKey = (action: string) => `${doc.id}-${action}-${type}`;
@@ -1191,7 +1194,10 @@ function DocDetail({
           </button>
         )}
 
-        {content && !isPM && status === "DRAFT" && (
+        {/* canGenerate(=본인이 시작한 회의록인지) 체크가 없으면 동료가 남의 초안을 대신
+            검토요청 상태로 바꿀 수 있었다(실제 발견된 문제 — 서버도 동일하게 막지만, 버튼
+            자체를 안 보이게 해야 애초에 시도할 일이 없다). */}
+        {content && !isPM && canGenerate && status === "DRAFT" && (
           <button
             onClick={onSubmitReview}
             disabled={busy === busyKey("submit")}

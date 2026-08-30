@@ -56,6 +56,20 @@ export async function POST(
       );
     }
 
+    // (재)생성은 화면에서 초안(DRAFT)이거나 반려(REJECTED)된 문서에서만 버튼이 뜬다 — 검토중이거나
+    // 이미 승인된 문서는 서버에서도 똑같이 막아야 한다. 이 체크가 없으면 작성자가 API를 직접 호출해
+    // PM이 지금 검토 중인 내용을, 혹은 이미 승인되어 요구사항정의서/업무의 근거가 된 내용을 아무
+    // 경고 없이 새 내용으로 덮어써버릴 수 있었다(실제 발견된 문제).
+    const isUnlockedStatus = (s: string) => s === "DRAFT" || s === "REJECTED";
+    const currentStatus = type === "proposal" ? doc.proposalStatus : doc.reqSpecStatus;
+    if (!isUnlockedStatus(currentStatus)) {
+      const label = type === "proposal" ? "기획서" : "요구사항정의서";
+      return NextResponse.json(
+        { error: `검토 중이거나 이미 승인된 ${label}는 다시 생성할 수 없습니다.` },
+        { status: 400 }
+      );
+    }
+
     const project = await prisma.project.findUnique({ where: { id: projectId }, select: { agentConfig: true } });
     const agentConfig = parseAgentConfig(project?.agentConfig);
 
