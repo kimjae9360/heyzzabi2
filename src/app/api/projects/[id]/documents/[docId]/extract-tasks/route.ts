@@ -72,12 +72,46 @@ export async function POST(
       ],
     });
 
-    const parsed = JSON.parse(completion.choices[0].message.content || "{}");
     const VALID_DIFFICULTY = ["HIGH", "MEDIUM", "LOW"];
-    const tasksData: any[] = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    const parsedDraft = JSON.parse(completion.choices[0].message.content || "{}");
+    const draftTasks: any[] = Array.isArray(parsedDraft.tasks) ? parsedDraft.tasks : [];
 
-    if (tasksData.length === 0) {
+    if (draftTasks.length === 0) {
       return NextResponse.json({ error: "AI가 업무를 생성하지 못했습니다." }, { status: 500 });
+    }
+
+    // 기획서/요구사항정의서와 같은 이유로 2차 자기 검토 패스를 추가한다 — 우선순위 '상' 항목이
+    // 빠졌는지, 시간/난이도가 관행적으로(전부 8시간/MEDIUM) 매겨지지 않았는지 스스로 재점검시킨다.
+    const reviewCompletion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      temperature: taskAssign.temperature,
+      messages: [
+        {
+          role: "system",
+          content:
+            "당신은 방금 작성된 업무 분해 초안을 검수하는 시니어 개발 리드입니다. 아래 [요구사항정의서]와 " +
+            "[초안]을 비교해, 우선순위 '상' 항목이 업무로 빠짐없이 반영됐는지, description이 구체적인지 " +
+            "(최소 2문장), estimatedHours/difficulty가 업무별로 근거 있게 갈려 있는지(전부 8시간/MEDIUM으로 " +
+            "획일화되지 않았는지) 점검하라.\n\n" +
+            "[절대 규칙] 요구사항정의서에 없는 기능·기술스택·수치를 새로 추가하거나 지어내지 마라.\n\n" +
+            `문제를 발견하면 그 부분만 고쳐서 완성도를 높인 최종본을 만들고, 초안이 이미 기준을 충족하면 ` +
+            `그대로 반환하라. 업무 개수는 ${taskAssign.minTasks}개 이상 ${taskAssign.maxTasks}개 이하를 유지하라.\n\n` +
+            "초안과 동일한 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
+            `{"tasks": [{"title": "업무명", "description": "...", "estimatedHours": 숫자, "difficulty": "HIGH|MEDIUM|LOW", "difficultyReason": "..."}]}`
+        },
+        { role: "user", content: `[요구사항정의서]\n${doc.reqSpecContent}\n\n[초안]\n${JSON.stringify({ tasks: draftTasks })}` }
+      ],
+    });
+
+    // 검토 패스가 실패하거나 초안보다 업무 수가 줄어드는 결과를 내놓으면 검토를 신뢰하지 않고
+    // 초안을 그대로 채택한다.
+    let tasksData = draftTasks;
+    try {
+      const reviewedTasks = JSON.parse(reviewCompletion.choices[0].message.content || "{}").tasks;
+      if (Array.isArray(reviewedTasks) && reviewedTasks.length >= draftTasks.length) tasksData = reviewedTasks;
+    } catch {
+      // 파싱 실패 시 draftTasks 유지
     }
 
     // 반려→직접수정→재승인 흐름 후 이 라우트가 다시 호출되면(이전엔 체크가 없어 중복 생성됐음),

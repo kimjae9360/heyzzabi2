@@ -5,6 +5,7 @@ import { X, Loader2, Save, AlignLeft, BarChart2, CalendarClock, Lock, AlertTrian
 import { isTaskOverdue } from "@/lib/taskOverdue";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
@@ -117,6 +118,7 @@ export function TaskDetailModal({
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <CalendarClock className="w-4 h-4" /> 일정 · 예상 소요시간
+              <DifficultyBadge difficulty={task.difficulty} />
               {!isPM && <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground/70"><Lock className="w-3 h-3" /> 재계획은 PM만 할 수 있습니다</span>}
               {isTaskOverdue(task) && (
                 <span className="flex items-center gap-1 text-[11px] font-bold text-red-500 ml-auto">
@@ -124,6 +126,10 @@ export function TaskDetailModal({
                 </span>
               )}
             </label>
+            {/* 업무 생성 에이전트가 난이도를 왜 그렇게 판단했는지 남긴 근거 — PM이 배분 판단할 때 참고 */}
+            {task.difficultyReason && (
+              <p className="text-xs text-muted-foreground -mt-1">난이도 판단 근거: {task.difficultyReason}</p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">시작일</label>

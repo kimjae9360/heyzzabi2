@@ -9,6 +9,53 @@ const NO_HALLUCINATION_RULE =
   "[절대 규칙] 원본에 명시되지 않은 사실, 기능, 수치, 일정은 절대 추가하거나 지어내지 마라(No hallucination). " +
   "원본에서 확인할 수 없는 항목은 비워두거나 생략하라. 근거 없는 추측으로 채우지 마라.";
 
+// 2026-08-30: 기획서 생성 에이전트에 처음으로 진짜 "도구 호출(tool calling)"을 붙였다 — 지금까지는
+// 우리가 미리 정해서 넘겨준 텍스트만 보고 답했는데, 이 도구는 모델이 스스로 "필요하다"고 판단할 때만
+// 실행된다. 과거에 승인된 다른 프로젝트 기획서 중 이번 회의록과 관련 있어 보이는 사례를 찾아,
+// 스타일/일관성 참고용 시사점을 만드는 데 쓴다(사실 자체를 새로 만드는 근거로는 못 쓰게 프롬프트로 막음).
+const SEARCH_PAST_PROPOSALS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "search_similar_past_proposals",
+    description:
+      "과거에 승인된 다른 프로젝트의 기획서 중, 이번 회의록/초안과 관련 있어 보이는 것을 키워드로 검색한다. " +
+      "비슷한 기능이나 결정을 이미 다른 프로젝트에서 다룬 적이 있는지 참고하고 싶을 때 사용한다.",
+    parameters: {
+      type: "object",
+      properties: {
+        keywords: { type: "string", description: "검색 키워드 (예: '소셜 로그인 다크모드')" },
+      },
+      required: ["keywords"],
+    },
+  },
+};
+
+async function searchSimilarPastProposals(keywords: string, excludeDocId: string) {
+  const words = keywords.split(/\s+/).map(w => w.trim()).filter(Boolean).slice(0, 5);
+  if (words.length === 0) return [];
+  const matches = await prisma.projectDocument.findMany({
+    where: {
+      id: { not: excludeDocId },
+      proposalStatus: "APPROVED",
+      OR: words.flatMap(w => [
+        { title: { contains: w, mode: "insensitive" as const } },
+        { proposalContent: { contains: w, mode: "insensitive" as const } },
+      ]),
+    },
+    select: { title: true, proposalContent: true },
+    take: 3,
+  });
+  return matches.map(m => {
+    let overview = "";
+    try {
+      overview = (JSON.parse(m.proposalContent || "{}").projectOverview ?? "").slice(0, 200);
+    } catch {
+      // 파싱 실패하면 요약 없이 제목만 반환
+    }
+    return { title: m.title, overview };
+  });
+}
+
 // AI 문서 파이프라인의 핵심 엔드포인트: OpenAI를 호출해 기획서 또는 요구사항정의서를 생성/재생성한다.
 // 같은 ProjectDocument row 안에서 proposal*/reqSpec* 필드가 각각 독립적으로 관리되므로,
 // type 값에 따라 어느 쪽 필드를 채울지 분기한다.
@@ -135,10 +182,9 @@ export async function POST(
         ],
       });
 
-      const rawProposal = JSON.parse(completion.choices[0].message.content || "{}");
       // 모델이 일부 필드를 가끔 빠뜨려도 화면이 죽지 않도록 안전한 기본값으로 정규화한다 —
-      // 프롬프트로 강제하는 것과 별개의 방어선.
-      const proposalDoc: ProposalDoc = {
+      // 프롬프트로 강제하는 것과 별개의 방어선. 초안/검수본 둘 다 같은 형태로 정리해야 하므로 함수로 뺐다.
+      const normalizeProposal = (rawProposal: any): ProposalDoc => ({
         ...rawProposal,
         projectOverview: rawProposal.projectOverview ?? "",
         problemDefinition: rawProposal.problemDefinition ?? "",
@@ -160,7 +206,102 @@ export async function POST(
         finalDecisions: Array.isArray(rawProposal.finalDecisions)
           ? rawProposal.finalDecisions.filter((s: any) => typeof s === "string" && s.trim())
           : [],
-      };
+      });
+
+      const draftProposal = normalizeProposal(JSON.parse(completion.choices[0].message.content || "{}"));
+
+      // 2026-08-30: 여기서 처음으로 실제 도구 호출(tool calling)을 쓴다 — 모델이 스스로 "과거
+      // 사례를 찾아볼 필요가 있다"고 판단할 때만 검색 도구를 실행한다(항상 실행하는 게 아님).
+      // 찾은 내용은 아래 검토 패스에 "참고용 시사점"으로만 전달하고, 그 자체를 새 사실의 근거로
+      // 쓰지 못하게 프롬프트로 막는다 — 실패해도(네트워크 오류 등) 전체 생성 흐름은 계속 진행한다.
+      let pastCaseInsight = "참고할 과거 사례 없음";
+      try {
+        const toolMessages: any[] = [
+          {
+            role: "system",
+            content:
+              "당신은 기획서 작성을 돕는 리서치 어시스턴트입니다. 아래 회의록과 초안 요약을 보고, 필요하다고 " +
+              "판단되면 search_similar_past_proposals 도구로 과거 유사 사례를 검색하세요. 검색 결과 중 이번 " +
+              "건과 실제로 관련 있는 내용이 있으면 스타일/일관성 참고용 시사점을 1~2문장으로 요약하고, 관련 " +
+              "사례가 없거나 검색이 필요 없다고 판단되면 '참고할 과거 사례 없음'이라고만 답하세요. 확인되지 " +
+              "않은 사실을 지어내지 마세요."
+          },
+          { role: "user", content: `[회의록]\n${doc.rawContent}\n\n[기획서 초안 개요]\n${draftProposal.projectOverview}` },
+        ];
+        const toolCallCompletion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          tools: [SEARCH_PAST_PROPOSALS_TOOL],
+          messages: toolMessages,
+        });
+        const toolMsg = toolCallCompletion.choices[0].message;
+        if (toolMsg.tool_calls && toolMsg.tool_calls.length > 0) {
+          toolMessages.push(toolMsg);
+          for (const call of toolMsg.tool_calls) {
+            if (call.type !== "function" || call.function.name !== "search_similar_past_proposals") continue;
+            const args = JSON.parse(call.function.arguments || "{}");
+            const results = await searchSimilarPastProposals(args.keywords || "", doc.id);
+            toolMessages.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(results.length ? results : { message: "관련 과거 기획서를 찾지 못했습니다." }),
+            });
+          }
+          const finalToolCompletion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: toolMessages,
+          });
+          pastCaseInsight = finalToolCompletion.choices[0].message.content || pastCaseInsight;
+        } else if (toolMsg.content) {
+          pastCaseInsight = toolMsg.content;
+        }
+      } catch (err) {
+        console.error("Tool-call insight step failed:", err);
+        // pastCaseInsight는 기본값("참고할 과거 사례 없음")으로 유지 — 이 단계가 실패해도
+        // 기획서 생성 자체는 계속 진행되어야 한다.
+      }
+
+      // 2026-08-30: 초안을 한 번에 끝내지 않고, 회의록과 초안을 같이 주고 "빠진 게 없는지"
+      // 스스로 재검토시키는 2차 패스를 추가했다 — 첫 시도에서 특정 기능 설명이 얕거나 회의록의
+      // 일부 언급이 통째로 누락되는 경우가 있어(품질 개선 요청) 자기 검토로 잡아내려는 목적이다.
+      // 검토 결과가 이미 충분하면 그대로 반환해도 되고, 문제가 있으면 그 부분만 고쳐서 반환한다.
+      const reviewCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
+        temperature: agentConfig.proposal.temperature,
+        messages: [
+          {
+            role: "system",
+            content:
+              "당신은 방금 작성된 기획서 초안을 검수하는 시니어 리뷰어입니다. 아래 [원본 회의록]과 [초안]을 " +
+              "비교해, 원본에 있는 내용 중 초안에서 빠졌거나 뭉뚱그려진 부분이 있는지, 각 항목이 충분히 " +
+              "구체적인지(최소 3~5문장, features/userScenario 최소 4단계 등 원래 지시된 기준) 점검하라.\n\n" +
+              NO_HALLUCINATION_RULE + "\n\n" +
+              "문제를 발견하면 그 부분만 고쳐서 완성도를 높인 최종본을 만들고, 초안이 이미 기준을 충족하면 " +
+              "그대로 반환하라. 원본에 없는 사실을 새로 추가하지 마라 — 검수는 '누락 보완과 구체화'이지 " +
+              "'창작 확장'이 아니다. userScenario 각 항목 앞에 번호를 쓰지 마라. 아래 [참고: 과거 유사 사례]는 " +
+              "스타일·일관성 참고용일 뿐이다 — 거기 나온 내용을 이번 회의록에 없는 새 사실을 추가하는 근거로 " +
+              "쓰지 마라.\n\n" +
+              "초안과 동일한 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
+              `{"projectOverview": "...", "problemDefinition": "...", "target": "...", "features": [{"name": "기능명", "description": "...", "priority": "필수|권장|선택"}], "userScenario": ["..."], "techStackConstraints": "...", "finalDecisions": ["..."], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}`
+          },
+          {
+            role: "user",
+            content: `[원본 회의록]\n${doc.rawContent}\n\n[초안]\n${JSON.stringify(draftProposal)}\n\n[참고: 과거 유사 사례]\n${pastCaseInsight}`,
+          }
+        ],
+      });
+
+      // 검토 패스가 통신 오류·빈 응답 등으로 실패하거나, 오히려 초안보다 부실한 결과(예: 있던
+      // 기능이 통째로 사라짐)를 내놓으면 검토 자체가 실패한 것으로 보고 초안을 그대로 채택한다 —
+      // "검토했는데 더 나빠짐"이 "검토 안 함"보다 나쁘다.
+      let proposalDoc = draftProposal;
+      try {
+        const reviewed = normalizeProposal(JSON.parse(reviewCompletion.choices[0].message.content || "{}"));
+        const isWorse = !reviewed.projectOverview || reviewed.features.length < draftProposal.features.length;
+        if (!isWorse) proposalDoc = reviewed;
+      } catch {
+        // 파싱 실패 시 draftProposal 유지
+      }
 
       await prisma.projectDocument.update({
         where: { id: doc.id },
@@ -228,10 +369,10 @@ export async function POST(
         ],
       });
 
-      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
       // 모델이 items나 새 필드(priority 등)를 가끔 빠뜨려도 화면이 죽지 않도록 안전한 기본값으로
-      // 정규화한다 — 프롬프트로 강제하는 것과 별개의 방어선.
-      const reqSpecDoc: ReqSpecDoc = {
+      // 정규화한다 — 프롬프트로 강제하는 것과 별개의 방어선. 초안/검수본 둘 다 같은 형태로
+      // 정리해야 하므로 함수로 뺐다.
+      const normalizeReqSpec = (parsed: any): ReqSpecDoc => ({
         items: (parsed.items || []).map((row: any) => ({
           id: row?.id ?? "",
           category: row?.category ?? "",
@@ -244,7 +385,43 @@ export async function POST(
           acceptanceCriteria: row?.acceptanceCriteria ?? "",
           note: row?.note ?? "",
         })),
-      };
+      });
+
+      const draftReqSpec = normalizeReqSpec(JSON.parse(completion.choices[0].message.content || "{}"));
+
+      // 기획서와 같은 이유로 2차 자기 검토 패스를 추가한다 — 기획서 기능 중 일부가 요구사항으로
+      // 안 쪼개졌거나, description/acceptanceCriteria가 얕은 항목이 있는지 스스로 다시 점검시킨다.
+      const reviewCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        response_format: { type: "json_object" },
+        temperature: agentConfig.reqSpec.temperature,
+        messages: [
+          {
+            role: "system",
+            content:
+              "당신은 방금 작성된 요구사항정의서 초안을 검수하는 시니어 리뷰어입니다. 아래 [기획서]와 [초안]을 " +
+              "비교해, 기획서의 features 중 요구사항으로 분해되지 않고 빠진 게 있는지, 각 항목의 description/" +
+              "acceptanceCriteria가 충분히 구체적인지(원래 지시된 기준: description 최소 2~3문장, " +
+              "acceptanceCriteria 1~3개의 검증 가능한 조건) 점검하라.\n\n" +
+              "[절대 규칙] 기획서에 명시되지 않은 기능·수치·기술스택은 절대 추가하거나 지어내지 마라.\n\n" +
+              "문제를 발견하면 그 부분만 고쳐서 완성도를 높인 최종본을 만들고, 초안이 이미 기준을 충족하면 " +
+              "그대로 반환하라. id 체계(FR-01-001 등)와 순서는 유지하라.\n\n" +
+              "초안과 동일한 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
+              `{"items": [{"id": "FR-01-001", "category": "...", "subCategory": "...", "name": "...", "description": "...", "priority": "상|중|하", "relatedFeature": "...", "inputOutput": "...", "acceptanceCriteria": "...", "note": "..."}]}`
+          },
+          { role: "user", content: `[기획서]\n${doc.proposalContent}\n\n[초안]\n${JSON.stringify(draftReqSpec)}` }
+        ],
+      });
+
+      // 검토 패스가 실패하거나 초안보다 항목 수가 줄어드는(요구사항이 사라지는) 결과를 내놓으면
+      // 검토를 신뢰하지 않고 초안을 그대로 채택한다.
+      let reqSpecDoc = draftReqSpec;
+      try {
+        const reviewed = normalizeReqSpec(JSON.parse(reviewCompletion.choices[0].message.content || "{}"));
+        if (reviewed.items.length >= draftReqSpec.items.length) reqSpecDoc = reviewed;
+      } catch {
+        // 파싱 실패 시 draftReqSpec 유지
+      }
 
       await prisma.projectDocument.update({
         where: { id: doc.id },

@@ -4,12 +4,15 @@ import { Fragment, useEffect, useState } from "react";
 import { Bot, Loader2, ChevronDown, UserIcon, CalendarIcon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentBadge } from "@/components/ui/AgentBadge";
+import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 
 type Task = {
   id: string;
   title: string;
   description: string | null;
   estimatedHours: number | null;
+  difficulty: string | null;
+  difficultyReason: string | null;
   status: string;
   assigneeId: string | null;
   assignee: { id: string; name: string } | null;
@@ -24,6 +27,8 @@ type Suggestion = {
   taskId: string;
   title: string;
   estimatedHours: number | null;
+  difficulty: string | null;
+  difficultyReason: string | null;
   suggestedAssigneeId: string | null;
   fitScore: number | null;
   techFit: string | null;
@@ -38,6 +43,8 @@ type DraftRow = {
   taskId: string;
   title: string;
   estimatedHours: number | null;
+  difficulty: string | null;
+  difficultyReason: string | null;
   assigneeId: string;
   fitScore: number | null;
   techFit: string | null;
@@ -46,6 +53,7 @@ type DraftRow = {
   wbsStart: string; // yyyy-mm-dd for <input type="date">
   wbsEnd: string;
 };
+
 
 type GanttItem = { id: string; title: string; assigneeName: string; wbsStart: string; wbsEnd: string };
 
@@ -120,6 +128,8 @@ export function TaskAssignmentPanel({
           taskId: s.taskId,
           title: s.title,
           estimatedHours: s.estimatedHours,
+          difficulty: s.difficulty,
+          difficultyReason: s.difficultyReason,
           assigneeId: s.suggestedAssigneeId ?? "",
           fitScore: s.fitScore,
           techFit: s.techFit,
@@ -221,6 +231,7 @@ export function TaskAssignmentPanel({
                             <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold">
                               {d.estimatedHours ?? "-"}h
                             </span>
+                            <DifficultyBadge difficulty={d.difficulty} reason={d.difficultyReason} />
                             {d.techFit && <span className="text-xs font-normal text-muted-foreground line-clamp-1">{d.techFit}</span>}
                           </span>
                         </span>
@@ -371,6 +382,7 @@ function AssignedList({
                             <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5 text-muted-foreground font-semibold">
                               {t.estimatedHours ?? "-"}h
                             </span>
+                            <DifficultyBadge difficulty={t.difficulty} reason={t.difficultyReason} />
                             {reason?.techFit ? (
                               <span className="text-xs font-normal text-muted-foreground line-clamp-1">{reason.techFit}</span>
                             ) : (
