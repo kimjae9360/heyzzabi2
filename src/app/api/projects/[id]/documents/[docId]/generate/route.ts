@@ -74,50 +74,68 @@ export async function POST(
             role: "system",
             content:
               "당신은 10년차 시니어 서비스 기획자입니다. 제공된 회의록/메모를 근거로, 실무팀이 별도 질문 없이 " +
-              "바로 다음 단계(요구사항정의서 작성)로 넘어갈 수 있는 수준으로 구체적인 '프로젝트 기획서'를 작성합니다.\n\n" +
+              "바로 다음 단계(요구사항정의서 작성)로 넘어갈 수 있는 수준으로 구체적인 '프로젝트 기획서'를 작성합니다. " +
+              "팀에서 기획서 형식을 아래 8개 항목으로 고정했으므로, 항상 이 구조 그대로 채운다.\n\n" +
               NO_HALLUCINATION_RULE + "\n\n" +
               "[작성 원칙 — 반드시 지켜라]\n" +
               "1) 어떤 항목도 한두 문장으로 뭉뚱그리지 마라. 회의록에 흩어져 있는 배경/이유/맥락/제약을 빠짐없이 찾아 " +
               "통합·구조화해 각 항목을 최소 3~5문장 이상의 완결된 문단으로 작성하라. 단 '구체적으로 쓰라'는 것은 " +
               "원본에 있는 정보를 빠짐없이 담으라는 뜻이지, 원본에 없는 수치·일정·기술스택을 새로 지어내라는 뜻이 아니다.\n" +
-              "2) background(배경 및 목적): (a) 회의록에서 확인되는 현재 상황/문제의식이 있다면 그것부터 서술하고, " +
-              "(b) 왜 지금 이 프로젝트가 필요한지, (c) 이를 통해 궁극적으로 달성하려는 목적까지 하나의 문단으로 엮어라.\n" +
-              "3) target(타겟 사용자): 회의록에서 유추 가능한 실제 사용 주체(내부 특정 부서/고객/특정 역할 등)와 " +
+              "2) projectOverview(프로젝트 개요): 이 프로젝트가 무엇이고 왜 지금 필요한지, 이를 통해 궁극적으로 " +
+              "달성하려는 목적이 무엇인지를 하나의 문단으로 요약하라.\n" +
+              "3) problemDefinition(문제 정의): 회의록에서 확인되는 현재 상황·불편함·문제의식을 구체적으로 서술하라 " +
+              "(무엇이 문제이고, 왜 문제이며, 방치하면 어떤 영향이 있는지). projectOverview와 겹치지 않게, '왜 필요한가' " +
+              "(개요)와 '무엇이 문제인가'(문제 정의)를 구분해서 써라.\n" +
+              "4) target(대상 사용자): 회의록에서 유추 가능한 실제 사용 주체(내부 특정 부서/고객/특정 역할 등)와 " +
               "그들이 이 기능으로 해결하려는 불편함(페인포인트)을 함께 서술하라. 명시가 없으면 기능의 성격에서 합리적으로 " +
               "유추 가능한 범위까지만 쓰고, 근거 없는 인구통계 수치·연령대 등은 절대 만들지 마라.\n" +
-              "4) features(주요 기능): 회의록에 언급된 기능/요구사항을 하나도 빠짐없이 항목화하라 — 세 가지가 언급됐는데 " +
+              "5) features(주요 기능): 회의록에 언급된 기능/요구사항을 하나도 빠짐없이 항목화하라 — 세 가지가 언급됐는데 " +
               "두 개만 뽑는 식으로 누락하면 안 된다. 각 description은 '무엇을 하는 기능인지 + 왜 필요한지(맥락) + " +
               "회의록에 언급된 동작 방식·조건·제약'을 모두 포함해 최소 3문장 이상으로 작성하라. priority는 회의록에서 " +
               "'최우선/필수/반드시/먼저' 등으로 강조됐으면 '필수', '있으면 좋음/추후/선택적으로/여유되면' 등으로 " +
               "언급됐으면 '선택', 그 외 일반적으로 언급된 기능은 '권장'으로 판단하라.\n" +
-              "5) expectedEffect(기대 효과): 프로젝트 완료 후 생기는 변화를 배경/목적과 연결지어 구체적으로 서술하라. " +
-              "회의록에 명시된 목표 수치가 있으면 그대로 인용하고, 없으면 정성적으로만 서술하라(수치를 지어내지 마라).\n" +
-              "6) risks(리스크 및 고려사항): 회의록에서 언급된 제약사항·우려·외부 의존성(예: 기존 시스템 유지 필요, " +
-              "특정 팀과 협의 필요 등)이 있으면 정리하고, 전혀 없으면 빈 문자열(\"\")로 둬라. 리스크를 지어내지 마라.\n" +
-              "7) successMetrics(성공 지표): 회의록에 목표 수치나 판단 기준(런칭일, 전환율, 처리시간 등)이 명시된 " +
-              "경우에만 정리하고, 없으면 빈 문자열(\"\")로 둬라.\n\n" +
+              "6) userScenario(사용자 시나리오): 대표 사용자가 이 기능들을 실제로 사용하는 흐름을 처음부터 끝까지 " +
+              "번호가 매겨진 단계별 순서로 서술하라(예: '1. 사용자가 로그인한다', '2. 대시보드에서 새 카드를 만든다' ...). " +
+              "각 단계는 features에 있는 기능들을 실제 사용 순서대로 엮은 것이어야 하며, 회의록에 없는 기능을 " +
+              "시나리오에만 새로 등장시키지 마라. 최소 4단계 이상으로 구체적으로 작성하라.\n" +
+              "7) techStackConstraints(기술 스택 및 제약사항): 회의록에 언급된 기술 스택·플랫폼·연동 대상 " +
+              "(예: 특정 프레임워크, 기존 시스템 연동, 모바일/웹 여부)과 제약사항·우려·외부 의존성(예: 기존 시스템 유지 " +
+              "필요, 특정 팀과 협의 필요, 예산·일정 제약 등)을 함께 정리하라. 둘 다 회의록에 전혀 근거가 없으면 " +
+              "빈 문자열(\"\")로 둬라 — 지어내지 마라.\n" +
+              "8) finalDecisions(최종 결정사항): 회의록에서 논의 끝에 확정된 것으로 언급된 결정 사항들을 목록으로 " +
+              "정리하라(예: '1차 릴리즈는 웹만 지원, 모바일 앱은 2차', 'OAuth2 방식으로 인증 결정'). 명시적으로 " +
+              "'결정했다/하기로 했다/확정' 등으로 언급된 것만 포함하고, 단순히 논의만 된 아이디어는 넣지 마라. " +
+              "결정된 사항이 전혀 없으면 빈 배열로 둬라.\n\n" +
               "다음 JSON 스키마로만 응답하라 (다른 텍스트/마크다운/코드블록 금지):\n" +
-              `{"background": "...", "target": "...", "features": [{"name": "기능명", "description": "3문장 이상 상세 설명", "priority": "필수|권장|선택"}], "expectedEffect": "...", "risks": "...", "successMetrics": "...", "milestones": [{"name": "마일스톤", "date": "날짜/시기"}], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
-              "원본에 일정 관련 언급이 없으면 milestones는 빈 배열로 둔다. features는 원본에서 확인되는 기능만 포함한다. " +
-              "원본에 '프로젝트 기간' 또는 명확한 시작일~종료일이 YYYY-MM-DD 형식으로 명시된 경우에만 projectPeriod를 채우고, " +
-              "그렇지 않으면 start와 end 모두 빈 문자열로 둔다(추측하거나 오늘 날짜로 채우지 마라)."
+              `{"projectOverview": "...", "problemDefinition": "...", "target": "...", "features": [{"name": "기능명", "description": "3문장 이상 상세 설명", "priority": "필수|권장|선택"}], "userScenario": ["1. ...", "2. ...", "3. ..."], "techStackConstraints": "...", "finalDecisions": ["...", "..."], "projectPeriod": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}}\n` +
+              "features는 원본에서 확인되는 기능만 포함한다. 원본에 '프로젝트 기간' 또는 명확한 시작일~종료일이 " +
+              "YYYY-MM-DD 형식으로 명시된 경우에만 projectPeriod를 채우고, 그렇지 않으면 start와 end 모두 빈 문자열로 " +
+              "둔다(추측하거나 오늘 날짜로 채우지 마라)."
           },
           { role: "user", content: doc.rawContent }
         ],
       });
 
       const rawProposal = JSON.parse(completion.choices[0].message.content || "{}");
-      // 모델이 새 필드(priority/risks/successMetrics)를 가끔 빠뜨려도 화면이 죽지 않도록
-      // 안전한 기본값으로 정규화한다 — 프롬프트로 강제하는 것과 별개의 방어선.
+      // 모델이 일부 필드를 가끔 빠뜨려도 화면이 죽지 않도록 안전한 기본값으로 정규화한다 —
+      // 프롬프트로 강제하는 것과 별개의 방어선.
       const proposalDoc: ProposalDoc = {
         ...rawProposal,
+        projectOverview: rawProposal.projectOverview ?? "",
+        problemDefinition: rawProposal.problemDefinition ?? "",
+        target: rawProposal.target ?? "",
         features: (rawProposal.features || []).map((f: any) => ({
           name: f?.name ?? "",
           description: f?.description ?? "",
           priority: ["필수", "권장", "선택"].includes(f?.priority) ? f.priority : "권장",
         })),
-        risks: rawProposal.risks ?? "",
-        successMetrics: rawProposal.successMetrics ?? "",
+        userScenario: Array.isArray(rawProposal.userScenario)
+          ? rawProposal.userScenario.filter((s: any) => typeof s === "string" && s.trim())
+          : [],
+        techStackConstraints: rawProposal.techStackConstraints ?? "",
+        finalDecisions: Array.isArray(rawProposal.finalDecisions)
+          ? rawProposal.finalDecisions.filter((s: any) => typeof s === "string" && s.trim())
+          : [],
       };
 
       await prisma.projectDocument.update({

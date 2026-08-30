@@ -13,11 +13,6 @@ export type ProposalFeature = {
   priority?: FeaturePriority;
 };
 
-export type ProposalMilestone = {
-  name: string;
-  date: string;
-};
-
 // 원본(회의록/메모)에 "프로젝트 기간: 2026-08-25 ~ 2026-10-24" 처럼 명시적인 기간이 있으면 추출해둔다.
 // 업무분배 탭에서 이 값이 있으면 오늘 날짜 대신 여기서부터 WBS 일정을 잡는다. 원본에 언급이 없으면
 // start/end 모두 빈 문자열 — AI가 지어내지 않는다(절대 규칙).
@@ -26,20 +21,19 @@ export type ProjectPeriod = {
   end: string; // YYYY-MM-DD, 없으면 ""
 };
 
-// FR-03-004 / FR-05-006 기획서 템플릿: 배경 및 목적 / 타겟 사용자 / 주요 기능 / 기대 효과 / (선택) 일정
-// 2026-08-27: 내용이 한 줄짜리 요약에 그쳐 "완벽한 기획서"라 부르기엔 부족하다는 피드백으로
-// risks/successMetrics 두 섹션을 추가했다. 둘 다 선택 필드다 — 원본에 근거가 전혀 없는 회의록에서
-// 억지로 채우면 환각이 되므로, 그런 경우 AI가 빈 문자열로 두면 화면에서 그 섹션 자체를 숨긴다
-// (ProposalTemplate.tsx의 조건부 렌더링 참고).
+// 기획서 템플릿: 팀에서 요청한 고정 형식 — 프로젝트 개요 / 문제 정의 / 대상 사용자 / 주요 기능 /
+// 사용자 시나리오 / 기술 스택 및 제약사항 / 최종 결정사항. 2026-08-30에 기존 7항목(배경·기대효과·
+// 리스크·KPI·마일스톤 구성)에서 이 구조로 통일했다 — 팀 전체가 항상 같은 형식으로 기획서를 읽고
+// 쓸 수 있도록 매번 AI가 알아서 구조를 고르지 않고 이 8개 항목으로 고정한다.
 export type ProposalDoc = {
-  background: string;
-  target: string;
-  features: ProposalFeature[];
-  expectedEffect: string;
-  milestones: ProposalMilestone[]; // 원본에 일정 언급이 없으면 빈 배열
-  projectPeriod?: ProjectPeriod;
-  risks?: string; // 리스크 및 고려사항 — 원본에 제약/우려/의존성 언급이 있을 때만 채워짐
-  successMetrics?: string; // 성공 지표(KPI) — 원본에 목표 수치/판단 기준 언급이 있을 때만 채워짐
+  projectOverview: string; // 프로젝트 개요
+  problemDefinition: string; // 문제 정의
+  target: string; // 대상 사용자
+  features: ProposalFeature[]; // 주요 기능 (기능명 + 설명)
+  userScenario: string[]; // 사용자 시나리오 — 번호 매긴 단계별 목록
+  techStackConstraints: string; // 기술 스택 및 제약사항
+  finalDecisions: string[]; // 최종 결정사항 — 목록형
+  projectPeriod?: ProjectPeriod; // 원본에 명시된 경우에만 헤더에 표시
 };
 
 // 기획서 초안을 여러 관점(예: MVP 중심 / 기능 확장 중심)으로 동시에 생성했을 때 그 중 하나.

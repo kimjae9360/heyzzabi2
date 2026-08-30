@@ -117,6 +117,10 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [docFilter, setDocFilter] = useState<"all" | "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED">("all");
+  // 검토요청/승인/반려처럼 방금 액션이 일어난 문서가 항상 목록 맨 위로 오도록 최신순(updatedAt desc)이
+  // 기본값 — PM이 "방금 누가 검토 요청을 보냈는지" 목록 훑어보지 않고도 바로 알 수 있어야 한다는
+  // 요청. 일반유저도 자기 문서를 날짜순으로 보고 싶을 수 있어 오래된순으로 뒤집는 토글도 같이 둔다.
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // preferredId가 있으면 그 프로젝트를 바로 보여준다(예: 문서 작성 모달에서 새 프로젝트를 만든 직후) —
   // 없으면 기존처럼 가장 최근(첫 번째) 프로젝트를 기본으로 본다(단일 프로젝트 전제).
@@ -174,7 +178,16 @@ export default function DocumentsPage() {
     // 요구사항정의서가 아직 미생성이어도 계속 보여준다.
     return d.proposalStatus !== "DRAFT";
   };
-  const documents: ProjectDocument[] = allDocuments.filter(isVisibleToViewer);
+  // 서버(/api/projects/current)도 updatedAt desc로 내려주지만, 방금 액션한 문서를 즉시 맨 위로
+  // 옮기거나(patchDoc이 updatedAt을 같이 갱신) 오래된순으로 뒤집는 토글을 클라이언트에서 처리하려면
+  // 여기서도 명시적으로 정렬해야 한다 — 서버 응답 순서에만 의존하면 안 된다.
+  const documents: ProjectDocument[] = allDocuments
+    .filter(isVisibleToViewer)
+    .slice()
+    .sort((a, b) => {
+      const diff = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      return sortOrder === "desc" ? diff : -diff;
+    });
   const hiddenDraftCount = allDocuments.length - documents.length;
   const selectedDoc = useMemo(
     () => documents.find(d => d.id === selectedDocId) ?? documents[0] ?? null,
@@ -197,7 +210,11 @@ export default function DocumentsPage() {
   const patchDoc = (docId: string, patch: Partial<ProjectDocument>) => {
     setProject((prev: any) => ({
       ...prev,
-      documents: prev.documents.map((d: ProjectDocument) => d.id === docId ? { ...d, ...patch } : d),
+      // 서버도 매 update마다 updatedAt을 자동 갱신하므로(@updatedAt), 클라이언트에서 미리 반영해두면
+      // 최신순 정렬이 새로고침 없이도 바로 이 문서를 목록 맨 위로 옮긴다.
+      documents: prev.documents.map((d: ProjectDocument) =>
+        d.id === docId ? { ...d, ...patch, updatedAt: new Date().toISOString() } : d
+      ),
     }));
   };
 
@@ -545,6 +562,32 @@ export default function DocumentsPage() {
                   <span className="text-[9px] opacity-70">{docFilterCounts[f.key]}</span>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* 검토요청/승인/반려처럼 방금 액션이 있었던 문서를 훑어보지 않고 바로 찾을 수 있도록
+              최신순을 기본으로 하되, 날짜순으로 훑어보고 싶을 때는 오래된순으로 뒤집을 수 있게 한다.
+              PM 전용이 아니라 일반유저 화면에도 동일하게 둔다. */}
+          {documents.length > 1 && (
+            <div className="flex items-center justify-end gap-1 text-[11px]">
+              <button
+                onClick={() => setSortOrder("desc")}
+                className={cn(
+                  "px-2 py-1 rounded-lg font-bold transition-colors",
+                  sortOrder === "desc" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                최신순
+              </button>
+              <button
+                onClick={() => setSortOrder("asc")}
+                className={cn(
+                  "px-2 py-1 rounded-lg font-bold transition-colors",
+                  sortOrder === "asc" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                오래된순
+              </button>
             </div>
           )}
 

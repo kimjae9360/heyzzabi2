@@ -26,7 +26,9 @@ export async function GET() {
           orderBy: { createdAt: "desc" }
         },
         documents: {
-          orderBy: { createdAt: "desc" },
+          // 검토요청/승인/반려처럼 방금 액션이 있었던 문서가 항상 목록 맨 위로 오도록 생성일이 아닌
+          // 최근 수정일 기준으로 정렬한다(ProjectDocument.updatedAt은 @updatedAt이라 상태 변경마다 갱신됨).
+          orderBy: { updatedAt: "desc" },
           // 화면에 "작성자: 이름" 배지를 보여주기 위함(PM이 남의 회의록을 대신 생성하면 안 되는
           // 규칙을 사람이 눈으로도 바로 확인할 수 있어야 한다는 피드백으로 추가).
           include: { author: { select: { id: true, name: true, email: true } } },

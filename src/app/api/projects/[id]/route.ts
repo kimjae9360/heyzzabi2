@@ -25,7 +25,9 @@ export async function GET(
           orderBy: { createdAt: "desc" }
         },
         documents: {
-          orderBy: { createdAt: "desc" },
+          // 검토요청/승인/반려처럼 방금 액션이 있었던 문서가 항상 목록 맨 위로 오도록 생성일이 아닌
+          // 최근 수정일 기준으로 정렬한다(ProjectDocument.updatedAt은 @updatedAt이라 상태 변경마다 갱신됨).
+          orderBy: { updatedAt: "desc" },
           include: { author: { select: { id: true, name: true, email: true } } },
         },
         assigneeRecommendations: {
