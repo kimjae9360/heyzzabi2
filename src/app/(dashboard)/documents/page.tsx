@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, useMemo, Fragment } from "react";
+import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
   FileText, Plus, Bot, Loader2, Send, CheckCircle2, XCircle,
   AlertCircle, Clock, RotateCcw, MessageSquare, X, FolderKanban,
-  Download, Printer, Trash2, Save, Pencil, ChevronDown, Lock,
+  Download, Printer, Trash2, Save, Pencil, ChevronDown, ChevronLeft, ChevronRight, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NewDocumentModal } from "@/components/projects/NewDocumentModal";
@@ -40,6 +40,12 @@ type ProjectDocument = {
   // 화면에 "작성자: 이름" 배지를 보여주기 위한 관계 데이터. authorId가 null이면 이것도 null.
   author: { id: string; name: string; email: string } | null;
 };
+
+// 문서 미리보기 A4 박스 크기(px). 기획서는 세로(A4), 요구사항정의서는 표라 가로(A4)로 눕혀 쓴다.
+const PROPOSAL_PAGE_W = 840;
+const PROPOSAL_PAGE_H = 1190;
+const REQSPEC_BOX_W = 1190;
+const REQSPEC_BOX_H = 840;
 
 const STATUS_META: Record<string, { label: string; className: string; icon: any }> = {
   DRAFT: { label: "초안", className: "bg-muted text-muted-foreground", icon: FileText },
@@ -774,6 +780,11 @@ function DocDetail({
   // 이 필드가 생기기 전(레거시) 데이터라 작성자를 알 수 없으므로 기존처럼 제한하지 않는다.
   const canGenerate = !doc.authorId || doc.authorId === currentUserId;
   const canGenerateReqSpec = type === "reqSpec" ? doc.proposalStatus === "APPROVED" : true;
+  // 목록(isVisibleToViewer)에는 보여야 하지만(파이프라인 추적용), 작성자가 아직 검토요청을
+  // 보내지 않은(DRAFT) 콘텐츠 "본문"까지 PM에게 미리 보여주면 안 된다 — 검토요청 전 문서를
+  // 목록에서 통째로 숨기는 것과 같은 원칙을, 승인된 기획서 뒤에 이어지는 요구사항정의서처럼
+  // 목록엔 남아있지만 아직 DRAFT인 콘텐츠에도 똑같이 적용한다(실제 보고된 문제).
+  const contentHiddenFromReviewer = isPM && !canGenerate && status === "DRAFT";
   const dateLabel = new Date(doc.updatedAt).toLocaleDateString("ko-KR");
 
   const busyKey = (action: string) => `${doc.id}-${action}-${type}`;
@@ -827,6 +838,48 @@ function DocDetail({
   const parsedContent = editMode ? editDraft : (type === "proposal" ? parseProposalDoc(content) : parseReqSpecDoc(content));
   // reqSpec 탭의 "기획서 원본" 참고 박스에서 쓴다 — 위와 별개로 항상 doc.proposalContent 기준.
   const parsedProposalRef = parseProposalDoc(doc.proposalContent);
+
+  // 기획서(세로 A4) 미리보기: 스크롤 없이 실제 인쇄물처럼 "페이지" 단위로 넘겨보고 싶다는
+  // 요청 — 내용을 CSS 다단(column)으로 페이지 폭만큼씩 잘라 흘려보낸 뒤, translateX로
+  // 페이지를 넘긴다(전자책 리더가 쓰는 방식). 편집 모드는 폼 요소가 컬럼 사이에서 잘려
+  // 보이는 문제가 있어 그대로 스크롤 방식을 쓴다.
+  //
+  // 페이지 폭(pageBoxWidth)은 상수(PROPOSAL_PAGE_W)로 고정하지 않고 실제 렌더된 박스
+  // 너비를 측정해서 쓴다 — 좁은 화면에서는 박스가 max-width:100%로 줄어드는데, 컬럼
+  // 너비 계산을 고정 840px 기준으로 하면 실제 렌더 너비와 안 맞아 페이지 수가 틀어진다.
+  //
+  // 페이지 수는 ResizeObserver로 재는데, 관찰 대상은 반드시 "박스"(outerBoxRef) 여야
+  // 한다 — 컬럼이 흘러넘치는 내부 콘텐츠 div(pagedContentRef) 자체는 폭/높이가 고정이라
+  // 내용이 늘어나 열이 여러 개로 나뉘어도 그 div "자신의" 레이아웃 박스 크기는 변하지
+  // 않는다(overflow는 scrollWidth만 늘릴 뿐 ResizeObserver가 감지하는 border-box는 그대로).
+  // 처음에 내부 div를 관찰 대상으로 뒀다가 리사이즈 이벤트가 전혀 안 와서 페이지네이션이
+  // 조용히 죽어있던 실제 버그였다 — 박스 쪽을 관찰하고, 콘텐츠가 바뀔 때마다 별도로
+  // scrollWidth를 다시 재는 방식으로 고친다.
+  const isPaginatedView = type === "proposal" && !editMode;
+  const outerBoxRef = useRef<HTMLDivElement>(null);
+  const pagedContentRef = useRef<HTMLDivElement>(null);
+  const [proposalPage, setProposalPage] = useState(0);
+  const [proposalPageCount, setProposalPageCount] = useState(1);
+  const [pageBoxWidth, setPageBoxWidth] = useState(PROPOSAL_PAGE_W);
+  useEffect(() => { setProposalPage(0); }, [doc.id, type, editMode]);
+  useEffect(() => {
+    if (!isPaginatedView) return;
+    const box = outerBoxRef.current;
+    if (!box) return;
+    const onResize = () => setPageBoxWidth(box.getBoundingClientRect().width || PROPOSAL_PAGE_W);
+    onResize();
+    const ro = new ResizeObserver(onResize);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [isPaginatedView]);
+  useEffect(() => {
+    if (!isPaginatedView) return;
+    const el = pagedContentRef.current;
+    if (!el || !pageBoxWidth) return;
+    const pages = Math.max(1, Math.round(el.scrollWidth / pageBoxWidth));
+    setProposalPageCount(pages);
+    setProposalPage(p => Math.min(p, pages - 1));
+  }, [isPaginatedView, parsedContent, pageBoxWidth]);
 
   // 잠긴 상태에서도 내용 자체는 볼 수 있어야 하므로, 수정은 막되 펼쳐서 전체를 확인하는 건 허용한다.
   // 기본은 펼쳐서(h-64) 보여준다 — 접혀 있으면 지금 보는 게 원본 회의록인지 기획서 본문인지
@@ -958,55 +1011,113 @@ function DocDetail({
       {/* 위 참고 박스(원본 회의록 / 기획서 원본)와 시각적으로 비슷해서, 지금 보고 있는 게
           어느 문서인지 헷갈린다는 피드백이 있어 실제 생성 문서 위에 이름표를 붙인다. */}
       <p className="text-sm text-muted-foreground font-semibold">{TAB_LABEL[type]}</p>
-      {/* A4 용지 느낌의 프리뷰: 폭/높이는 A4 비율(가로:세로 = 1:√2)을 최대치로 두고, 내용이
-          그보다 적으면 상자가 내용 크기에 맞춰 줄어든다(max-w/max-h만 걸고 고정 크기를 주지
-          않음). 기획서는 세로(A4 세로) 기준이라 넘치면 위아래로, 요구사항정의서는 표라 컬럼이
-          많아지기 쉬우므로 가로(A4 가로) 기준으로 두고 넘치면 좌우로 스크롤한다(표 자체의
-          overflow-x-auto가 실제 가로 스크롤을 담당 — ReqSpecTemplate 참고). */}
-      <div className="border border-border rounded-xl overflow-hidden bg-black/10 dark:bg-black/30 p-4 flex justify-center">
-        <div
-          className={cn(
-            "bg-white dark:bg-white",
-            type === "proposal"
-              ? "w-full max-w-[840px] max-h-[1190px] overflow-y-auto"
-              : "w-full max-w-[1190px] max-h-[840px] overflow-y-auto"
-          )}
-        >
-          {content && parsedContent ? (
-            <div id="print-area">
-              {type === "proposal" ? (
-                <ProposalTemplate
-                  doc={parsedContent}
-                  title={doc.title} dateLabel={dateLabel}
-                  editable={editMode} onChange={setEditDraft}
-                />
-              ) : (
-                <ReqSpecTemplate
-                  doc={parsedContent}
-                  title={doc.title} dateLabel={dateLabel}
-                  editable={editMode} onChange={setEditDraft}
-                />
+      {/* A4 용지 느낌의 프리뷰.
+          - 기획서(세로): 스크롤 없이 딱 A4 한 장 크기로 고정하고, 내용이 넘치면 실제 책처럼
+            CSS 다단(column)으로 잘라 화살표로 페이지를 넘긴다(isPaginatedView). 편집 모드는
+            폼 요소가 컬럼 사이에서 잘려 보이므로 예전처럼 세로 스크롤 박스를 쓴다.
+          - 요구사항정의서(가로): 표라 페이지 나누기가 부자연스러워 컬럼 방식 대신, A4 크기로
+            고정한 박스 자체를 상하좌우 스크롤 컨테이너로 둔다(표의 min-width가 박스 폭보다
+            크면 가로로, 행이 많아 높이를 넘으면 세로로 스크롤 — ReqSpecTemplate 참고). */}
+      <div className="border border-border rounded-xl overflow-hidden bg-black/10 dark:bg-black/30 p-4 flex flex-col items-center gap-3">
+        {contentHiddenFromReviewer ? (
+          <div className="w-full max-w-[1190px] bg-white dark:bg-white p-10 text-center text-muted-foreground text-sm">
+            아직 {TAB_LABEL[type]} 검토 요청 전입니다. 작성자가 검토를 요청하면 내용을 확인하실 수 있습니다.
+          </div>
+        ) : content && parsedContent ? (
+          isPaginatedView ? (
+            <>
+              <div
+                ref={outerBoxRef}
+                className="bg-white dark:bg-white shadow-sm overflow-hidden print:hidden"
+                style={{ width: PROPOSAL_PAGE_W, height: PROPOSAL_PAGE_H, maxWidth: "100%" }}
+              >
+                <div
+                  ref={pagedContentRef}
+                  style={{
+                    columnWidth: pageBoxWidth,
+                    columnGap: 0,
+                    height: PROPOSAL_PAGE_H,
+                    transform: `translateX(-${proposalPage * pageBoxWidth}px)`,
+                    transition: "transform 0.25s ease",
+                  }}
+                >
+                  <ProposalTemplate doc={parsedContent} title={doc.title} dateLabel={dateLabel} editable={false} />
+                </div>
+              </div>
+              {proposalPageCount > 1 && (
+                <div className="flex items-center gap-3 print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setProposalPage(p => Math.max(0, p - 1))}
+                    disabled={proposalPage === 0}
+                    className="p-2 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-semibold text-muted-foreground tabular-nums">
+                    {proposalPage + 1} / {proposalPageCount} 페이지
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProposalPage(p => Math.min(proposalPageCount - 1, p + 1))}
+                    disabled={proposalPage >= proposalPageCount - 1}
+                    className="p-2 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               )}
-            </div>
-          ) : content ? (
-            <div className="p-10 text-center text-muted-foreground text-sm">
-              문서 내용을 표시할 수 없습니다. 형식이 손상되었을 수 있습니다.
-            </div>
+              {/* 인쇄/PDF는 페이지 넘김 없이 한 번에 이어지는 문서여야 하므로, 화면엔 숨긴
+                  전체 버전을 따로 하나 더 둔다(#print-area만 인쇄되도록 globals.css 참고). */}
+              <div id="print-area" className="hidden print:block w-full">
+                <ProposalTemplate doc={parsedContent} title={doc.title} dateLabel={dateLabel} editable={false} />
+              </div>
+            </>
           ) : (
-            <div className="p-10 text-center text-muted-foreground text-sm">
-              {!canGenerateReqSpec
-                ? REQSPEC_BLOCK_MESSAGE[doc.proposalStatus] || "기획서가 승인되면 요구사항정의서를 생성할 수 있습니다."
-                : !canGenerate
-                ? "다른 사용자가 시작한 회의록입니다. 작성자 본인만 생성할 수 있습니다."
-                : `AI가 아직 ${TAB_LABEL[type]}를 생성하지 않았습니다.`}
+            <div
+              className={cn(
+                "bg-white dark:bg-white",
+                type === "proposal"
+                  ? "w-full max-w-[840px] max-h-[1190px] overflow-y-auto"
+                  : "w-full overflow-auto doc-scroll"
+              )}
+              style={type === "reqSpec" ? { maxWidth: REQSPEC_BOX_W, height: REQSPEC_BOX_H } : undefined}
+            >
+              <div id="print-area">
+                {type === "proposal" ? (
+                  <ProposalTemplate
+                    doc={parsedContent}
+                    title={doc.title} dateLabel={dateLabel}
+                    editable={editMode} onChange={setEditDraft}
+                  />
+                ) : (
+                  <ReqSpecTemplate
+                    doc={parsedContent}
+                    title={doc.title} dateLabel={dateLabel}
+                    editable={editMode} onChange={setEditDraft}
+                  />
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          )
+        ) : content ? (
+          <div className="w-full max-w-[1190px] bg-white dark:bg-white p-10 text-center text-muted-foreground text-sm">
+            문서 내용을 표시할 수 없습니다. 형식이 손상되었을 수 있습니다.
+          </div>
+        ) : (
+          <div className="w-full max-w-[1190px] bg-white dark:bg-white p-10 text-center text-muted-foreground text-sm">
+            {!canGenerateReqSpec
+              ? REQSPEC_BLOCK_MESSAGE[doc.proposalStatus] || "기획서가 승인되면 요구사항정의서를 생성할 수 있습니다."
+              : !canGenerate
+              ? "다른 사용자가 시작한 회의록입니다. 작성자 본인만 생성할 수 있습니다."
+              : `AI가 아직 ${TAB_LABEL[type]}를 생성하지 않았습니다.`}
+          </div>
+        )}
       </div>
 
       {/* Action bar */}
       <div className="flex justify-end items-center gap-3 pt-2">
-        {content && (
+        {content && !contentHiddenFromReviewer && (
           <div className="flex items-center gap-2 mr-auto">
             <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-xs font-semibold transition-colors">
               <Printer className="w-3.5 h-3.5" /> PDF 다운로드

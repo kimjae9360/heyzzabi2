@@ -41,8 +41,11 @@ export function ReqSpecTemplate({
         <p className="text-center text-gray-400 py-10">항목이 없습니다.</p>
       ) : (
         // 좁은 컨테이너(히스토리 모달 등)에 그대로 두면 "기능설명" 칸이 한 글자씩 세로로
-        // 찌부러졌었다 — 표에 실제 최소 너비를 줘서, 모자라면 표 전체가 가로 스크롤되게 한다.
-        <div className="overflow-x-auto print:overflow-visible">
+        // 찌부러졌었다 — 표에 실제 최소 너비를 줘서, 모자라면 표를 감싼 A4 박스(문서 상세
+        // 페이지)나 부모 스크롤 컨테이너가 가로로 스크롤하게 한다. 여기서 자체적으로
+        // overflow-x-auto를 또 걸면 스크롤 컨테이너가 이중으로 겹쳐 오히려 스크롤이 먹통처럼
+        // 느껴지는 문제가 있었다(실제 보고된 버그) — 그래서 이 div는 폭 강제 목적으로만 둔다.
+        <div>
           <table className="w-full min-w-[1500px] print:min-w-0 border-collapse text-sm">
             <thead>
               <tr className="bg-gray-100 border-y-2 border-black">
