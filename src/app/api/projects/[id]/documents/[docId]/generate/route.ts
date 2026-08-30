@@ -79,8 +79,11 @@ export async function POST(
 
       // response_format: json_object로 모델이 순수 JSON만 반환하도록 강제하고, temperature는
       // 기본 0.0(결정적)이되 /settings의 "기획서 생성 에이전트" 설정값을 따른다(환각 방지를 위해 0~0.3으로 clamp됨)
+      // 2026-08-30: 기획서 품질을 더 끌어올려달라는 요청으로 mini에서 상위 모델로 올렸다 — 이
+      // 파이프라인의 첫 산출물이라 이후 요구사항정의서/업무 품질이 전부 여기 근거하므로 가장
+      // 먼저 올릴 가치가 있는 지점이다.
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         response_format: { type: "json_object" },
         temperature: agentConfig.proposal.temperature,
         messages: [
@@ -179,7 +182,7 @@ export async function POST(
       }
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         response_format: { type: "json_object" },
         temperature: agentConfig.reqSpec.temperature,
         messages: [
@@ -187,7 +190,10 @@ export async function POST(
             role: "system",
             content:
               "당신은 10년차 시스템 분석가(SA)입니다. 제공된 기획서(JSON)를 바탕으로, 개발자가 추가 질문 없이 " +
-              "바로 구현에 착수할 수 있는 수준으로 상세한 '요구사항정의서'를 표 형태의 항목 목록으로 작성합니다.\n\n" +
+              "바로 구현에 착수할 수 있는 수준으로 상세한 '요구사항정의서'를 표 형태의 항목 목록으로 작성합니다. " +
+              "참고용으로 원본 회의록도 함께 제공되니, 기획서 단계에서 요약되며 빠졌을 수 있는 구체적 조건·수치· " +
+              "예외 상황이 회의록에 있다면 그것도 근거로 활용하라 — 단, 기획서에 없는 기능을 회의록만 보고 " +
+              "새로 추가하지는 마라(기획서가 이미 PM 승인을 거친 확정 범위다).\n\n" +
               NO_HALLUCINATION_RULE + "\n\n" +
               "[작성 원칙 — 반드시 지켜라]\n" +
               "1) 기획서 features 배열의 기능 각각을 최소 1개, 대개 2~4개의 구현 단위 요구사항으로 분해하라. " +
@@ -213,7 +219,12 @@ export async function POST(
               "id는 FR-01-001부터 순서대로 번호를 매긴다(대분류가 바뀌면 두 번째 숫자를 올려도 된다: FR-02-001). " +
               "기획서에 없는 기능을 새로 추가하지 말고, 기획서에 있는 내용을 개발 가능한 단위로 충실히 분해·구체화하라."
           },
-          { role: "user", content: doc.proposalContent }
+          {
+            role: "user",
+            content: doc.rawContent
+              ? `[기획서]\n${doc.proposalContent}\n\n[원본 회의록 — 참고용]\n${doc.rawContent}`
+              : doc.proposalContent!,
+          }
         ],
       });
 

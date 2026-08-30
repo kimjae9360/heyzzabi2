@@ -71,7 +71,7 @@ export async function POST(
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       response_format: { type: "json_object" },
       temperature: 0.0, // 배치를 재실행해도 같은 입력이면 같은 배정이 나오도록 결정성을 최대화
       messages: [
