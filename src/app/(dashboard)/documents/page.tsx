@@ -894,21 +894,36 @@ function DocDetail({
   const rawDirty = rawDraft !== (doc.rawContent ?? "");
   const rawSaving = busy === busyKey("save-raw");
 
-  // 2026-08-31: "검토요청 전"(DRAFT)이든 "반려"(REJECTED)든, 아직 확정되지 않은 내용은 항상
-  // 그 자리에서 바로 고칠 수 있는 상태로 보여준다 — 예전처럼 반려된 문서에서만, 그것도 "직접
-  // 수정" 버튼을 한 번 더 눌러야 편집 모드로 들어가는 구조는 필요 없다. 검토중(PENDING_REVIEW)
-  // 이후로 넘어가면(승인/반려 전 대기) 다시 읽기 전용으로 잠긴다.
-  const isEditableState = !!content && (status === "DRAFT" || status === "REJECTED");
+  // 2026-08-31: DRAFT(검토요청 전)는 항상 그 자리에서 바로 고칠 수 있는 상태로 보여준다.
+  // REJECTED(반려)는 역할에 따라 다르다 — PM은 자기 자신에게 검토요청할 이유가 없어 "수정" 한
+  // 번으로 바로 고쳐서 확정하므로 항상 편집 가능해도 된다. 반면 일반 유저는 반려 사유를 먼저
+  // 읽게 하려고 기본은 읽기 전용이고, "수정" 버튼을 눌러야만(rejectedEditMode) 편집 화면으로
+  // 바뀐다(사용자 요청) — 검토중(PENDING_REVIEW) 이후로 넘어가면 다시 읽기 전용으로 잠긴다.
+  const [rejectedEditMode, setRejectedEditMode] = useState(false);
+  useEffect(() => { setRejectedEditMode(false); }, [doc.id, type]);
+  const isEditableState = !!content && (status === "DRAFT" || (status === "REJECTED" && (isPM || rejectedEditMode)));
   const [editDraft, setEditDraft] = useState<any>(null);
-  // 문서를 옮기거나(doc.id/type 변경) 저장·재생성으로 content 자체가 바뀌면(참조 값이 달라짐)
-  // 편집 초안을 최신 내용으로 다시 맞춘다 — 타이핑 중에는 content가 안 바뀌므로 여기서 갱신되지 않는다.
+  // 문서를 옮기거나(doc.id/type 변경) 편집 상태에 들어가거나(rejectedEditMode) 저장·재생성으로
+  // content 자체가 바뀌면(참조 값이 달라짐) 편집 초안을 최신 내용으로 다시 맞춘다 — 타이핑
+  // 중에는 content가 안 바뀌므로 여기서 갱신되지 않는다.
   useEffect(() => {
     setEditDraft(isEditableState ? (type === "proposal" ? parseProposalDoc(content) : parseReqSpecDoc(content)) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.id, type, status, content]);
+  }, [doc.id, type, isEditableState, content]);
   const editSaving = busy === busyKey("save-content");
   const draftSaving = busy === busyKey("save-draft");
   const submitting = busy === busyKey("submit");
+  const generating = busy === busyKey("generate");
+
+  // "검토요청" 클릭 시 반려 이후로 정말 아무것도 안 바뀌었는지 판단하는 기준선 — 반려된 시점의
+  // content를 한 번만 스냅샷으로 잡아두고(수정완료로 저장이 일어나도 이 값은 안 바뀜),
+  // 검토요청 시점의 현재 content와 비교한다. status가 REJECTED로 "유지"되는 동안(재렌더)은
+  // 다시 잡지 않고, 새로 반려될 때만(status가 실제로 바뀔 때) 갱신된다.
+  const rejectedSnapshotRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (status === "REJECTED") rejectedSnapshotRef.current = content ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.id, type, status]);
 
   // parseProposalDoc/parseReqSpecDoc은 형식이 손상된 문서(레거시 포맷 등)에서 null을 반환할 수
   // 있다 — 과거 이 경우를 `!`로 무시하다가 화면이 죽은 적이 있어(PROJECT_STATUS.md 참고),
@@ -1097,7 +1112,15 @@ function DocDetail({
             고정한 박스 자체를 상하좌우 스크롤 컨테이너로 둔다(표의 min-width가 박스 폭보다
             크면 가로로, 행이 많아 높이를 넘으면 세로로 스크롤 — ReqSpecTemplate 참고). */}
       <div className="border border-border rounded-xl overflow-hidden bg-black/10 dark:bg-black/30 p-4 flex flex-col items-center gap-3">
-        {contentHiddenFromReviewer ? (
+        {generating ? (
+          // AI 에이전트가 실제로 응답하기까지 몇 초~수십 초 걸리는데, 그동안 화면이 그대로
+          // (첫 생성이면 빈 상태, 재생성이면 직전 내용)라 뭘 하고 있는지 안 보인다는 피드백 —
+          // 생성 중에는 내용 박스 자체를 큰 로딩 화면으로 덮는다.
+          <div className="w-full max-w-[1190px] bg-white dark:bg-white p-16 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+            <Loader2 className="w-9 h-9 animate-spin text-primary" />
+            <p className="text-sm font-semibold">에이전트가 {TAB_LABEL[type]} 생성 중입니다…</p>
+          </div>
+        ) : contentHiddenFromReviewer ? (
           <div className="w-full max-w-[1190px] bg-white dark:bg-white p-10 text-center text-muted-foreground text-sm">
             아직 {TAB_LABEL[type]} 검토 요청 전입니다. 작성자가 검토를 요청하면 내용을 확인하실 수 있습니다.
           </div>
@@ -1233,11 +1256,14 @@ function DocDetail({
             자체를 안 보이게 해야 애초에 시도할 일이 없다). */}
         {content && canGenerate && status === "DRAFT" && (
           <button
-            onClick={onGenerate}
-            disabled={busy === busyKey("generate")}
+            onClick={() => {
+              if (!confirm("이전 내용이 삭제되고 새로운 내용으로 진행됩니다.\n재생성 하시겠습니까?")) return;
+              onGenerate();
+            }}
+            disabled={generating}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm font-bold transition-colors disabled:opacity-50"
           >
-            {busy === busyKey("generate") ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
             {type === "proposal" ? "기획서 재생성" : "요구사항정의서 재생성"}
             <AgentBadge agent={type} />
           </button>
@@ -1253,28 +1279,55 @@ function DocDetail({
           </button>
         )}
 
-        {/* REJECTED(반려됨): 반려 사유를 보면서 그 자리에서 바로 고칠 수 있다. AI "재생성"은
-            반려 사유를 반영하지 못하는 맹목적인 재생성이라 여기서는 빼고, 사람이 직접 고치는
-            "수정"과 그걸 그대로 다시 보내는 "검토요청"만 둔다. PM이 스스로 고치는 경우는 자기
-            자신에게 검토요청할 이유가 없으므로(기획서 생성과 동일한 원칙) 수정과 동시에 바로
-            승인 확정한다. */}
-        {content && status === "REJECTED" && (
+        {/* REJECTED(반려됨): PM은 자기 자신에게 검토요청할 이유가 없으므로(기획서 생성과 동일한
+            원칙) 항상 편집 가능한 상태에서 "수정" 한 번으로 바로 고쳐서 승인 확정한다.
+            일반 유저는 반려 사유를 먼저 읽게 하려고 기본은 읽기 전용이고, "수정"을 눌러야
+            편집 화면으로 바뀐다 — 누르는 순간 버튼 자체가 "수정완료"로 바뀌고, 그걸 누르면
+            내용만 저장(사유는 유지)하고 다시 읽기 전용으로 돌아온다. 그 뒤 "검토요청"으로
+            보낼 수 있는데, 반려 시점 내용과 지금 내용이 완전히 같으면(=한 번도 안 고쳤으면)
+            그대로 보내도 되는지 한 번 더 확인한다. */}
+        {content && status === "REJECTED" && isPM && (
           <button
             onClick={() => {
               if (!editDraft) return;
-              const json = JSON.stringify(editDraft);
-              if (isPM) onSaveDocContent(json); else onSaveDraft(json);
+              onSaveDocContent(JSON.stringify(editDraft));
             }}
-            disabled={isPM ? editSaving : draftSaving}
+            disabled={editSaving}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm font-bold transition-colors disabled:opacity-50"
           >
-            {(isPM ? editSaving : draftSaving) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
+            {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pencil className="w-4 h-4" />}
             수정
           </button>
         )}
-        {content && !isPM && status === "REJECTED" && (
+        {content && status === "REJECTED" && !isPM && !rejectedEditMode && (
           <button
-            onClick={() => onSubmitReview(JSON.stringify(editDraft))}
+            onClick={() => setRejectedEditMode(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm font-bold transition-colors"
+          >
+            <Pencil className="w-4 h-4" /> 수정
+          </button>
+        )}
+        {content && status === "REJECTED" && !isPM && rejectedEditMode && (
+          <button
+            onClick={() => {
+              if (!editDraft) return;
+              onSaveDraft(JSON.stringify(editDraft));
+              setRejectedEditMode(false);
+            }}
+            disabled={draftSaving}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+          >
+            {draftSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            수정완료
+          </button>
+        )}
+        {content && !isPM && status === "REJECTED" && !rejectedEditMode && (
+          <button
+            onClick={() => {
+              const unchanged = rejectedSnapshotRef.current !== null && content === rejectedSnapshotRef.current;
+              if (unchanged && !confirm("아무것도 수정이 되지 않았습니다. 그래도 검토요청하시겠습니까?")) return;
+              onSubmitReview(content ?? undefined);
+            }}
             disabled={submitting}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
           >
