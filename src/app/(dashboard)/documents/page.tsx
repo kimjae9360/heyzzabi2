@@ -927,6 +927,9 @@ function DocDetail({
   const draftSaving = busy === busyKey("save-draft");
   const submitting = busy === busyKey("submit");
   const generating = busy === busyKey("generate");
+  // 요구사항정의서 탭의 "업무 배분 실행"(extract-tasks)도 같은 에이전트 호출이라, 생성 중
+  // 로딩 화면을 이 문서 내용 박스에도 똑같이 띄운다(사용자 요청 — 다른 에이전트 단계와 통일).
+  const extractingTasks = type === "reqSpec" && busy === busyKey("tasks");
 
   // "검토요청" 클릭 시 이 편집 주기(요구사항정의서 DRAFT 또는 REJECTED) 동안 정말 아무것도 안
   // 바뀌었는지 판단하는 기준선 — 그 주기가 시작된 시점의 content를 한 번만 스냅샷으로 잡아두고
@@ -1134,6 +1137,11 @@ function DocDetail({
           <div className="w-full max-w-[1190px] bg-white dark:bg-white p-16 flex flex-col items-center justify-center gap-4 text-muted-foreground">
             <Loader2 className="w-9 h-9 animate-spin text-primary" />
             <p className="text-sm font-semibold">에이전트가 {TAB_LABEL[type]} 생성 중입니다…</p>
+          </div>
+        ) : extractingTasks ? (
+          <div className="w-full max-w-[1190px] bg-white dark:bg-white p-16 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+            <Loader2 className="w-9 h-9 animate-spin text-primary" />
+            <p className="text-sm font-semibold">에이전트가 업무를 추출하는 중입니다…</p>
           </div>
         ) : contentHiddenFromReviewer ? (
           <div className="w-full max-w-[1190px] bg-white dark:bg-white p-10 text-center text-muted-foreground text-sm">

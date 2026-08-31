@@ -490,8 +490,10 @@ export function KanbanBoard({ projectId, initialTasks, members = [] }: { project
                 <AgentBadge agent="taskAssign" />
               </label>
               {aiLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                  <Loader2 className="w-4 h-4 animate-spin" /> 기술스택·업무량·경험을 분석하는 중...
+                // 다른 에이전트 단계(문서 생성/업무 배분)와 같은 큰 로딩 화면으로 통일 — 사용자 요청.
+                <div className="flex flex-col items-center justify-center gap-3 py-10 text-muted-foreground">
+                  <Loader2 className="w-9 h-9 animate-spin text-primary" />
+                  <p className="text-sm font-semibold">에이전트가 기술스택·업무량·경험을 분석하는 중입니다…</p>
                 </div>
               ) : !aiRecs || aiRecs.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">추천할 만한 근거가 부족합니다. 아래에서 직접 선택해주세요.</p>
