@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, FolderKanban, HelpCircle, Mail, ChevronDown, FileText, ShieldCheck, Lightbulb, AlertTriangle } from "lucide-react";
+import { Settings as SettingsIcon, Loader2, Save, CheckCircle2, Sparkles, FolderKanban, HelpCircle, Mail, ChevronDown, FileText, ShieldCheck, Lightbulb, AlertTriangle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AgentBadge } from "@/components/ui/AgentBadge";
+import { Toast } from "@/components/ui/Toast";
 import { parseAgentConfig, DEFAULT_AGENT_CONFIG, type AgentConfig } from "@/lib/agentConfig";
 import { TERMS_ARTICLES, TERMS_EFFECTIVE_DATE, PRIVACY_SECTIONS, PRIVACY_EFFECTIVE_DATE } from "@/lib/legalContent";
 
 const SUPPORT_EMAIL = "kimjae9360@gmail.com";
+
+// 2026-08-31: 아직 쓰지 않기로 해서 화면에서만 숨긴다(기능/API는 그대로 둠 — 나중에 다시
+// 켤 수 있게). true로 바꾸면 바로 복원된다.
+const SHOW_REJECT_INSIGHTS = false;
 
 // 사용방법 위주 FAQ — 실제 파이프라인/화면 동작을 근거로 작성(일반적인 문구 아님)
 const FAQ_ITEMS = [
@@ -52,6 +57,9 @@ export default function SettingsPage() {
   const [insightResult, setInsightResult] = useState<{
     insufficientData: boolean; message?: string; reasonCount: number; overallSummary?: string; patterns?: RejectInsight[];
   } | null>(null);
+
+  const [resetting, setResetting] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -111,6 +119,27 @@ export default function SettingsPage() {
     }
   };
 
+  const resetDocuments = async () => {
+    if (!project) return;
+    if (!confirm(
+      "이 프로젝트의 모든 회의록·기획서·요구사항정의서와 거기서 생성된 업무가 전부 삭제됩니다.\n되돌릴 수 없습니다. 정말 초기화하시겠습니까?"
+    )) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/reset-documents`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToastMessage("문서생성 리스트가 초기화되었습니다");
+      } else {
+        alert(data.error || "초기화에 실패했습니다.");
+      }
+    } catch {
+      alert("네트워크 오류가 발생했습니다.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-[60vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
   }
@@ -133,6 +162,7 @@ export default function SettingsPage() {
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-3 text-muted-foreground mb-1">
           <SettingsIcon className="w-5 h-5 text-primary" />
@@ -218,7 +248,7 @@ export default function SettingsPage() {
 
       {/* 반려 패턴 분석 — PM이 반려할 때 남긴 사유를 모아 반복 패턴/프롬프트 개선 제안을 보여주는
           반자동 피드백 루프. AI가 프롬프트를 직접 고치지는 않는다 — 사람이 읽고 판단한다. */}
-      {isPM && (
+      {isPM && SHOW_REJECT_INSIGHTS && (
         <section className="glass rounded-2xl border border-border p-6 space-y-4">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2">
@@ -307,6 +337,31 @@ export default function SettingsPage() {
           <Mail className="w-4 h-4" /> 오류 문의하기 ({SUPPORT_EMAIL})
         </a>
       </section>
+
+      {/* 문서생성 리스트 초기화 — 데모/테스트용으로 이 프로젝트의 회의록·기획서·요구사항정의서와
+          거기서 파생된 업무를 한 번에 지운다. 되돌릴 수 없는 파괴적 동작이라 PM 전용이고
+          시각적으로도 다른 섹션과 구분되는 위험 구역 스타일을 쓴다. */}
+      {isPM && (
+        <section className="glass rounded-2xl border border-red-500/30 p-6 space-y-3">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2 text-red-400">
+              <Trash2 className="w-5 h-5" /> 문서생성 리스트 초기화
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              이 프로젝트의 모든 회의록·기획서·요구사항정의서와 그로부터 생성된 업무를 전부
+              삭제합니다. 데모/테스트를 새로 시작할 때만 사용하세요 — 되돌릴 수 없습니다.
+            </p>
+          </div>
+          <button
+            onClick={resetDocuments}
+            disabled={resetting}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-bold hover:bg-red-500/20 disabled:opacity-50"
+          >
+            {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            문서생성 리스트 초기화
+          </button>
+        </section>
+      )}
 
       {/* 법적 고지 — 이용약관/개인정보처리방침도 FAQ와 동일하게 눌러서 펼쳐본다.
           전체 내용은 /settings/legalContent.ts를 공유해서 /settings/terms, /settings/privacy
