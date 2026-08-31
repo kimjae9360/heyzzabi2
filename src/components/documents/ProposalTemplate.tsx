@@ -1,23 +1,11 @@
-import { stripLeadingNumber, type FeaturePriority, type ProposalDoc, type ProposalFeature } from "@/lib/documentTemplates";
+import { stripLeadingNumber, type ProposalDoc, type ProposalFeature } from "@/lib/documentTemplates";
 import { Trash2, Plus } from "lucide-react";
 
 const inputCls = "w-full bg-black/5 border border-black/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40";
 
-const PRIORITY_OPTIONS: FeaturePriority[] = ["필수", "권장", "선택"];
-const PRIORITY_BADGE_CLASS: Record<FeaturePriority, string> = {
-  필수: "bg-red-100 text-red-700",
-  권장: "bg-blue-100 text-blue-700",
-  선택: "bg-gray-100 text-gray-600",
-};
-
-function PriorityBadge({ priority }: { priority?: FeaturePriority }) {
-  const p = priority ?? "권장";
-  return (
-    <span className={`inline-block text-[11px] font-semibold px-1.5 py-0.5 rounded ${PRIORITY_BADGE_CLASS[p]}`}>
-      {p}
-    </span>
-  );
-}
+// 2026-08-31: 화면에 노출하던 필수/권장/선택 우선순위 태그(뱃지+선택 드롭다운)를 뺐다 — 사용자
+// 요청. priority 값 자체는 요구사항정의서 생성 프롬프트가 상/중/하 산정 근거로 계속 쓰므로
+// ProposalFeature/문서 데이터에서는 그대로 유지하고, 이 화면(생성/편집 뷰) 노출만 없앤다.
 
 export function ProposalTemplate({
   doc, title, dateLabel, editable, onChange,
@@ -113,21 +101,12 @@ export function ProposalTemplate({
             {doc.features?.map((f, i) => (
               <div key={i} className="flex gap-2 items-start p-3 rounded-lg bg-black/[0.03] border border-black/10">
                 <div className="flex-1 space-y-2">
-                  <div className="flex gap-2 items-center">
-                    <input
-                      value={f.name}
-                      onChange={e => setFeature(i, { name: e.target.value })}
-                      placeholder="기능명"
-                      className={`${inputCls} font-semibold`}
-                    />
-                    <select
-                      value={f.priority ?? "권장"}
-                      onChange={e => setFeature(i, { priority: e.target.value as FeaturePriority })}
-                      className={`${inputCls} w-24! shrink-0`}
-                    >
-                      {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
+                  <input
+                    value={f.name}
+                    onChange={e => setFeature(i, { name: e.target.value })}
+                    placeholder="기능명"
+                    className={`${inputCls} font-semibold`}
+                  />
                   <textarea
                     value={f.description}
                     onChange={e => setFeature(i, { description: e.target.value })}
@@ -148,8 +127,7 @@ export function ProposalTemplate({
           <ol className="space-y-3 list-decimal list-inside">
             {doc.features.map((f, i) => (
               <li key={i}>
-                <span className="font-semibold">{f.name}</span>{" "}
-                <PriorityBadge priority={f.priority} />
+                <span className="font-semibold">{f.name}</span>
                 <p className="text-sm text-gray-700 mt-0.5 ml-5 whitespace-pre-wrap">{f.description}</p>
               </li>
             ))}

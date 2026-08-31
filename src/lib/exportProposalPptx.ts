@@ -36,11 +36,10 @@ export async function exportProposalPptx(doc: ProposalDoc, title: string) {
   featureSlide.addText("4. 주요 기능", { x: 0.5, y: 0.4, w: 9, h: 0.6, fontSize: 24, bold: true, color: ACCENT });
   // pptxgenjs의 rich-text 배열: 기능명은 글머리 기호(bullet)로, 설명은 한 단계 들여쓰기(indentLevel)해서
   // "기능명 - 설명" 구조가 한눈에 보이도록 구성한다.
-  const PRIORITY_COLOR: Record<string, string> = { 필수: "DC2626", 권장: "2563EB", 선택: "94A3B8" };
   const featureBullets = (doc.features || []).flatMap(f => ([
     {
-      text: `${f.name}  [${f.priority ?? "권장"}]`,
-      options: { bold: true, fontSize: 14, color: PRIORITY_COLOR[f.priority ?? "권장"] ?? TITLE_COLOR, bullet: true, breakLine: true },
+      text: f.name,
+      options: { bold: true, fontSize: 14, color: TITLE_COLOR, bullet: true, breakLine: true },
     },
     { text: f.description, options: { fontSize: 11, color: "64748B", indentLevel: 1, breakLine: true } },
   ]));
