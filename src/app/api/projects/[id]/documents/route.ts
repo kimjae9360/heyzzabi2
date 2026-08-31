@@ -42,8 +42,18 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
     });
 
     return NextResponse.json(doc);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Document create error:", error);
+    // P2003 = FK 제약 위반. 여기서는 projectId가 대상이므로, 모달이 열려있는 동안(또는 다른 탭에서)
+    // 그 프로젝트가 삭제된 뒤 화면이 여전히 옛 프로젝트 목록을 들고 있다가 제출한 경우다 — 실제로
+    // 이 화면에서 재현된 버그(선택된 프로젝트가 이미 없는데도 원인 불명의 500만 뜸). 재시도해도
+    // 똑같이 실패하므로, 목록을 새로고침해야 함을 명확히 알려준다.
+    if (error?.code === "P2003") {
+      return NextResponse.json(
+        { error: "선택한 프로젝트를 찾을 수 없습니다. 이미 삭제되었을 수 있어요 — 새로고침 후 다시 시도해주세요." },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: "문서 생성 실패" }, { status: 500 });
   }
 }

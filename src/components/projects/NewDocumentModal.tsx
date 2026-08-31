@@ -232,6 +232,7 @@ export function NewDocumentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     if (!content.trim()) return;
     if (isCreatingNewProject && !newProjectName.trim()) return;
 
@@ -257,7 +258,10 @@ export function NewDocumentModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: newProjectName.trim(), tasks: [] }),
         });
-        if (!projectRes.ok) throw new Error("프로젝트 생성 실패");
+        if (!projectRes.ok) {
+          const body = await projectRes.json().catch(() => null);
+          throw new Error(body?.error || "프로젝트 생성 실패");
+        }
         const newProject = await projectRes.json();
         targetProjectId = newProject.id;
       }
@@ -274,15 +278,32 @@ export function NewDocumentModal({
       });
 
       if (!res.ok) {
-        throw new Error("생성 실패");
+        const body = await res.json().catch(() => null);
+        // 선택된 프로젝트가 이미 삭제된 경우(FK 위반) — 재시도해도 똑같이 실패하므로
+        // 옛 목록을 그대로 들고 있지 않도록 프로젝트 목록을 새로 불러와, 사용자가 다시
+        // 선택만 하면 되게 한다(실제 프로덕션에서 재현된 버그, 원인은 프로젝트가 목록을
+        // 불러온 뒤 삭제되어 드롭다운이 존재하지 않는 프로젝트를 계속 가리키고 있던 것).
+        if (res.status === 400 && !isCreatingNewProject) {
+          fetch("/api/projects")
+            .then(r => r.json())
+            .then(list => {
+              const arr: ProjectOption[] = Array.isArray(list) ? list : list.data || [];
+              setProjects(arr);
+              if (!arr.some(p => p.id === selectedProjectId)) {
+                setSelectedProjectId(arr.length > 0 ? arr[0].id : NEW_PROJECT_VALUE);
+              }
+            })
+            .catch(() => {});
+        }
+        throw new Error(body?.error || "문서 생성 실패");
       }
       const createdDoc = await res.json();
 
       router.refresh();
       onClose(targetProjectId, createdDoc?.id);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("문서 생성 중 오류가 발생했습니다.");
+      setError(error?.message || "문서 생성 중 오류가 발생했습니다.");
     } finally {
       setIsLoading(false);
     }
