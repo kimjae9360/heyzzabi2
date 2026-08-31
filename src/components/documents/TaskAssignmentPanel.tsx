@@ -107,18 +107,30 @@ export function TaskAssignmentPanel({
 
   const runAssign = async () => {
     setGenerating(true);
+    // onRefresh(=fetchProject)는 페이지 전체를 로딩 스피너로 갈아치우며 이 패널을 통째로
+    // 리마운트시킨다 — 추출과 배정 추천 사이에 호출하면 이 함수가 이어서 채우려던 drafts가
+    // 이미 버려진(언마운트된) 컴포넌트 인스턴스에 적용되어 화면에 반영되지 않고, 사용자는
+    // "미배정 업무 N건" 화면으로 되돌아가 버튼을 한 번 더 눌러야 했다. assign-tasks는 어차피
+    // DB에서 직접 미배정 업무를 조회하므로 중간에 prop을 갱신할 필요가 없어 호출 자체를 없앤다.
+    const extractedNewTasks = tasks.length === 0;
     try {
       // 이 문서에서 아직 업무가 추출된 적이 없다면 먼저 추출부터 한다
-      if (tasks.length === 0) {
+      if (extractedNewTasks) {
         const res = await fetch(`/api/projects/${projectId}/documents/${doc.id}/extract-tasks`, { method: "POST" });
         const data = await res.json();
         if (!res.ok) { alert(data.error || "업무 생성에 실패했습니다."); return; }
-        onRefresh();
       }
 
       const res = await fetch(`/api/projects/${projectId}/documents/${doc.id}/assign-tasks`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || "배정 추천 생성에 실패했습니다."); return; }
+      if (!res.ok) {
+        alert(data.error || "배정 추천 생성에 실패했습니다.");
+        // 방금 추출한 업무가 이미 DB에 있는데 prop이 여전히 0건이면, 사용자가 재시도할 때
+        // "업무 배분 시작" 분기로 다시 들어가 extract-tasks를 중복 호출하게 된다 — 실패
+        // 시에만 여기서 새로고침해 prop을 DB 상태와 맞춘다.
+        if (extractedNewTasks) onRefresh();
+        return;
+      }
 
       const meta: Record<string, number> = {};
       (data.candidates ?? []).forEach((c: any) => { meta[c.userId] = c.currentActiveTasks; });
