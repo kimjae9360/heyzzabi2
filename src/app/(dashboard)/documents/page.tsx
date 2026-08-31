@@ -19,6 +19,7 @@ import { exportReqSpecExcel } from "@/lib/exportReqSpecExcel";
 import { parseProposalDoc, parseReqSpecDoc } from "@/lib/documentTemplates";
 import { TaskAssignmentPanel } from "@/components/documents/TaskAssignmentPanel";
 import { AgentBadge } from "@/components/ui/AgentBadge";
+import { Toast } from "@/components/ui/Toast";
 
 type DocType = "proposal" | "reqSpec";
 type PipelineTab = DocType | "taskAssignment";
@@ -218,6 +219,10 @@ export default function DocumentsPage() {
     }));
   };
 
+  // 생성이 끝났을 때 "OO 생성이 완료되었습니다"를 잠깐 띄우는 용도 — 로딩 화면이 사라지는
+  // 순간이 곧 완료 시점이라 별다른 신호 없이 그냥 내용이 바뀌면 놓치기 쉽다는 피드백.
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const handleGenerate = async (doc: ProjectDocument, type: DocType) => {
     setBusy(`${doc.id}-generate-${type}`);
     try {
@@ -244,6 +249,7 @@ export default function DocumentsPage() {
             reqSpecRejectReason: null,
           });
         }
+        setToastMessage(`${TAB_LABEL[type]} 생성이 완료되었습니다`);
       } else {
         alert(data.error || "생성 중 오류가 발생했습니다.");
       }
@@ -272,6 +278,7 @@ export default function DocumentsPage() {
           [REASON_FIELD[type]]: null,
           ...(content !== undefined ? { [CONTENT_FIELD[type]]: content } : {}),
         } as Partial<ProjectDocument>);
+        setToastMessage("검토요청이 완료되었습니다");
       } else alert(data.error || "검토 요청 실패");
     } finally {
       setBusy(null);
@@ -758,6 +765,8 @@ export default function DocumentsPage() {
         </div>
       </div>
 
+      <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
+
       {newDocModalOpen && (
         <NewDocumentModal
           defaultProjectId={project?.id}
@@ -894,34 +903,39 @@ function DocDetail({
   const rawDirty = rawDraft !== (doc.rawContent ?? "");
   const rawSaving = busy === busyKey("save-raw");
 
-  // 2026-08-31: DRAFT(검토요청 전)는 항상 그 자리에서 바로 고칠 수 있는 상태로 보여준다.
-  // REJECTED(반려)는 역할에 따라 다르다 — PM은 자기 자신에게 검토요청할 이유가 없어 "수정" 한
-  // 번으로 바로 고쳐서 확정하므로 항상 편집 가능해도 된다. 반면 일반 유저는 반려 사유를 먼저
-  // 읽게 하려고 기본은 읽기 전용이고, "수정" 버튼을 눌러야만(rejectedEditMode) 편집 화면으로
-  // 바뀐다(사용자 요청) — 검토중(PENDING_REVIEW) 이후로 넘어가면 다시 읽기 전용으로 잠긴다.
+  // 2026-08-31: 기획서(proposal) DRAFT는 항상 그 자리에서 바로 고칠 수 있는 상태로 보여준다.
+  // 요구사항정의서(reqSpec) DRAFT와 REJECTED(반려, 두 타입 공통)는 역할에 따라 다르다 — PM은
+  // 자기 자신에게 검토요청할 이유가 없어 "수정" 한 번으로 바로 고쳐서 확정하므로 항상 편집
+  // 가능해도 된다. 반면 일반 유저는 내용을 먼저 읽게 하려고 기본은 읽기 전용이고, "수정" 버튼을
+  // 눌러야만(draftEditMode/rejectedEditMode) 편집 화면으로 바뀐다(사용자 요청).
+  const [draftEditMode, setDraftEditMode] = useState(false);
   const [rejectedEditMode, setRejectedEditMode] = useState(false);
-  useEffect(() => { setRejectedEditMode(false); }, [doc.id, type]);
-  const isEditableState = !!content && (status === "DRAFT" || (status === "REJECTED" && (isPM || rejectedEditMode)));
+  useEffect(() => { setDraftEditMode(false); setRejectedEditMode(false); }, [doc.id, type]);
+  const isEditableState = !!content && (
+    (status === "DRAFT" && (type === "proposal" || isPM || draftEditMode)) ||
+    (status === "REJECTED" && (isPM || rejectedEditMode))
+  );
   const [editDraft, setEditDraft] = useState<any>(null);
-  // 문서를 옮기거나(doc.id/type 변경) 편집 상태에 들어가거나(rejectedEditMode) 저장·재생성으로
-  // content 자체가 바뀌면(참조 값이 달라짐) 편집 초안을 최신 내용으로 다시 맞춘다 — 타이핑
-  // 중에는 content가 안 바뀌므로 여기서 갱신되지 않는다.
+  // 문서를 옮기거나(doc.id/type 변경) 편집 상태에 들어가거나(draftEditMode/rejectedEditMode)
+  // 저장·재생성으로 content 자체가 바뀌면(참조 값이 달라짐) 편집 초안을 최신 내용으로 다시
+  // 맞춘다 — 타이핑 중에는 content가 안 바뀌므로 여기서 갱신되지 않는다.
   useEffect(() => {
     setEditDraft(isEditableState ? (type === "proposal" ? parseProposalDoc(content) : parseReqSpecDoc(content)) : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id, type, isEditableState, content]);
   const editSaving = busy === busyKey("save-content");
   const draftSaving = busy === busyKey("save-draft");
   const submitting = busy === busyKey("submit");
   const generating = busy === busyKey("generate");
 
-  // "검토요청" 클릭 시 반려 이후로 정말 아무것도 안 바뀌었는지 판단하는 기준선 — 반려된 시점의
-  // content를 한 번만 스냅샷으로 잡아두고(수정완료로 저장이 일어나도 이 값은 안 바뀜),
-  // 검토요청 시점의 현재 content와 비교한다. status가 REJECTED로 "유지"되는 동안(재렌더)은
-  // 다시 잡지 않고, 새로 반려될 때만(status가 실제로 바뀔 때) 갱신된다.
-  const rejectedSnapshotRef = useRef<string | null>(null);
+  // "검토요청" 클릭 시 이 편집 주기(요구사항정의서 DRAFT 또는 REJECTED) 동안 정말 아무것도 안
+  // 바뀌었는지 판단하는 기준선 — 그 주기가 시작된 시점의 content를 한 번만 스냅샷으로 잡아두고
+  // (수정완료로 저장이 일어나도 이 값은 안 바뀜), 검토요청 시점의 현재 content와 비교한다.
+  // status가 그대로 유지되는 동안(재렌더)은 다시 잡지 않고, 상태가 실제로 바뀔 때만 갱신된다.
+  const toggleSnapshotRef = useRef<string | null>(null);
   useEffect(() => {
-    if (status === "REJECTED") rejectedSnapshotRef.current = content ?? null;
+    if (status === "REJECTED" || (status === "DRAFT" && type === "reqSpec")) {
+      toggleSnapshotRef.current = content ?? null;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id, type, status]);
 
@@ -1249,12 +1263,13 @@ function DocDetail({
           </button>
         )}
 
-        {/* DRAFT(검토요청 전): 내용은 위에서 이미 바로 고칠 수 있는 상태로 보이고, 여기선
+        {/* DRAFT(검토요청 전): 기획서는 내용이 이미 바로 고칠 수 있는 상태로 보이고, 여기선
             "AI로 다시 생성" 또는 "지금 내용 그대로 검토요청" 둘 중 하나만 고르면 된다.
             canGenerate(=본인이 시작한 회의록인지) 체크가 없으면 동료가 남의 초안을 대신
             검토요청 상태로 바꿀 수 있었다(실제 발견된 문제 — 서버도 동일하게 막지만, 버튼
-            자체를 안 보이게 해야 애초에 시도할 일이 없다). */}
-        {content && canGenerate && status === "DRAFT" && (
+            자체를 안 보이게 해야 애초에 시도할 일이 없다). 재생성은 이전 내용을 지우는
+            돌이킬 수 없는 동작이라 확인창을 한 번 거친다. */}
+        {content && canGenerate && status === "DRAFT" && !draftEditMode && (
           <button
             onClick={() => {
               if (!confirm("이전 내용이 삭제되고 새로운 내용으로 진행됩니다.\n재생성 하시겠습니까?")) return;
@@ -1268,9 +1283,52 @@ function DocDetail({
             <AgentBadge agent={type} />
           </button>
         )}
-        {content && !isPM && canGenerate && status === "DRAFT" && (
+
+        {type === "proposal" && content && !isPM && canGenerate && status === "DRAFT" && (
           <button
             onClick={() => onSubmitReview(JSON.stringify(editDraft))}
+            disabled={submitting}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            검토요청
+          </button>
+        )}
+
+        {/* 요구사항정의서 DRAFT(일반 유저): 기획서와 달리 내용을 바로 편집 가능하게 두지 않고,
+            "수정"을 눌러야 편집 화면으로 바뀐다(사용자 요청) — 누르는 순간 버튼이 "수정완료"로
+            바뀌고, 누르면 내용만 저장하고 다시 읽기 전용으로 돌아온다. "검토요청"은 생성된
+            시점 내용과 지금 내용이 완전히 같으면(=한 번도 안 고쳤으면) 그대로 보내도 되는지
+            한 번 더 확인한다. */}
+        {type === "reqSpec" && content && !isPM && canGenerate && status === "DRAFT" && !draftEditMode && (
+          <button
+            onClick={() => setDraftEditMode(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-sm font-bold transition-colors"
+          >
+            <Pencil className="w-4 h-4" /> 수정
+          </button>
+        )}
+        {type === "reqSpec" && content && !isPM && canGenerate && status === "DRAFT" && draftEditMode && (
+          <button
+            onClick={() => {
+              if (!editDraft) return;
+              onSaveDraft(JSON.stringify(editDraft));
+              setDraftEditMode(false);
+            }}
+            disabled={draftSaving}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
+          >
+            {draftSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            수정완료
+          </button>
+        )}
+        {type === "reqSpec" && content && !isPM && canGenerate && status === "DRAFT" && !draftEditMode && (
+          <button
+            onClick={() => {
+              const unchanged = toggleSnapshotRef.current !== null && content === toggleSnapshotRef.current;
+              if (unchanged && !confirm("아무것도 수정이 되지 않았습니다. 그래도 검토요청하시겠습니까?")) return;
+              onSubmitReview(content ?? undefined);
+            }}
             disabled={submitting}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
           >
@@ -1324,7 +1382,7 @@ function DocDetail({
         {content && !isPM && status === "REJECTED" && !rejectedEditMode && (
           <button
             onClick={() => {
-              const unchanged = rejectedSnapshotRef.current !== null && content === rejectedSnapshotRef.current;
+              const unchanged = toggleSnapshotRef.current !== null && content === toggleSnapshotRef.current;
               if (unchanged && !confirm("아무것도 수정이 되지 않았습니다. 그래도 검토요청하시겠습니까?")) return;
               onSubmitReview(content ?? undefined);
             }}

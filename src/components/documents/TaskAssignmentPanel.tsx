@@ -5,6 +5,7 @@ import { Bot, Loader2, ChevronDown, UserIcon, CalendarIcon, CheckCircle2 } from 
 import { cn } from "@/lib/utils";
 import { AgentBadge } from "@/components/ui/AgentBadge";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
+import { Toast } from "@/components/ui/Toast";
 
 type Task = {
   id: string;
@@ -87,6 +88,7 @@ export function TaskAssignmentPanel({
   const [confirming, setConfirming] = useState(false);
   const [reassigning, setReassigning] = useState<string | null>(null);
   const [expandedReason, setExpandedReason] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // 담당자 변경 드롭다운에 쓸 팀원 목록은 배정 실행 여부와 무관하게 항상 필요하다.
   // 온보딩 전이라 이름이 비어있는 계정은 드롭다운에 빈 옵션으로 뜨니 제외한다.
@@ -151,6 +153,7 @@ export function TaskAssignmentPanel({
           wbsEnd: toDateInput(s.suggestedWbsEnd),
         }))
       );
+      setToastMessage("업무 배분 생성이 완료되었습니다");
     } catch {
       alert("네트워크 오류가 발생했습니다.");
     } finally {
@@ -210,6 +213,7 @@ export function TaskAssignmentPanel({
       .map(d => ({ id: d.taskId, title: d.title, assigneeName: members.find(m => m.id === d.assigneeId)?.name ?? "미배정", wbsStart: d.wbsStart, wbsEnd: d.wbsEnd }));
     return (
       <div className="space-y-4">
+        <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
         <p className="text-sm text-muted-foreground">
           AI가 추천한 담당자와 일정입니다. 필요하면 담당자·일정을 직접 바꾼 뒤 확정하세요.
         </p>
@@ -320,19 +324,30 @@ export function TaskAssignmentPanel({
         {tasks.length > 0 && <AssignedList tasks={tasks} members={members} isPM={isPM} expandedReason={expandedReason} setExpandedReason={setExpandedReason} reassign={reassign} reassigning={reassigning} />}
         {isPM ? (
           <div className="p-10 text-center border border-dashed border-border rounded-xl">
-            <Bot className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">
-              {tasks.length === 0 ? "요구사항정의서를 바탕으로 업무를 추출하고 담당자를 배정합니다." : `미배정 업무 ${unassigned.length}건이 있습니다.`}
-            </p>
-            <button
-              onClick={runAssign}
-              disabled={generating}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 mx-auto"
-            >
-              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-              {tasks.length === 0 ? "업무 배분 시작" : "나머지 배분 추천받기"}
-              <AgentBadge agent="taskAssign" />
-            </button>
+            {generating ? (
+              // 기획서/요구사항정의서 생성 화면과 동일하게, 에이전트가 실제로 응답하기까지
+              // 몇 초 걸리는 동안 뭘 하고 있는지 보이도록 큰 로딩 화면으로 바꾼다.
+              <div className="flex flex-col items-center gap-4 py-6">
+                <Loader2 className="w-9 h-9 animate-spin text-primary" />
+                <p className="text-sm font-semibold text-muted-foreground">에이전트가 업무를 배분하는 중입니다…</p>
+              </div>
+            ) : (
+              <>
+                <Bot className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  {tasks.length === 0 ? "요구사항정의서를 바탕으로 업무를 추출하고 담당자를 배정합니다." : `미배정 업무 ${unassigned.length}건이 있습니다.`}
+                </p>
+                <button
+                  onClick={runAssign}
+                  disabled={generating}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 mx-auto"
+                >
+                  <Bot className="w-4 h-4" />
+                  {tasks.length === 0 ? "업무 배분 시작" : "나머지 배분 추천받기"}
+                  <AgentBadge agent="taskAssign" />
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <div className="p-10 text-center text-muted-foreground text-sm">
