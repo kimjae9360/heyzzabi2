@@ -304,7 +304,10 @@ export function TaskAssignmentPanel({
             취소
           </button>
           <button
-            onClick={confirmAssignment}
+            onClick={() => {
+              if (!confirm("이대로 배분 하시겠습니까?")) return;
+              confirmAssignment();
+            }}
             disabled={confirming}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50"
           >

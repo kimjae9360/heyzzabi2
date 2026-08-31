@@ -449,6 +449,7 @@ export default function DocumentsPage() {
       if (res.ok) {
         await fetchProject(project.id);
         setActiveTab("taskAssignment");
+        setToastMessage("업무 생성이 완료되었습니다");
         if (data.staleTasks?.length > 0) {
           alert(`이미 진행 중이거나 완료된 업무 ${data.staleTasks.length}건은 예전 요구사항 기준 그대로 남아있습니다. 필요하면 업무분배 탭에서 직접 확인해주세요.`);
         }
