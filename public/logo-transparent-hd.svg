@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1840" height="600" viewBox="0 0 184 60" role="img" aria-labelledby="title desc">
+  <title id="title">헤이 짜비 로고</title>
+  <desc id="desc">파란색 Zz 심볼과 헤이 짜비 한글 워드마크</desc>
+  <defs>
+    <filter id="iconShadow" x="-35%" y="-35%" width="170%" height="190%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" flood-color="#155DFC" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- 배경 도형을 두지 않아 캔버스 전체가 실제 투명입니다. -->
+  <rect x="19" y="13" width="42" height="38" rx="10" fill="#155DFC" filter="url(#iconShadow)"/>
+  <text x="40" y="39"
+        text-anchor="middle"
+        fill="#FFFFFF"
+        font-family="Inter, Arial, sans-serif"
+        font-size="18"
+        font-weight="900"
+        letter-spacing="-1">Zz</text>
+  <text x="73" y="42"
+        fill="#101828"
+        font-family="Inter, 'Malgun Gothic', 'Noto Sans KR', sans-serif"
+        font-size="22"
+        font-weight="700"
+        letter-spacing="-0.9">헤이 짜비</text>
+</svg>

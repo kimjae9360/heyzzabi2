@@ -577,12 +577,16 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
         {/* Document list */}
         <div className="glass rounded-2xl border border-border p-4 space-y-3">
-          <button
-            onClick={() => setNewDocModalOpen(true)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> 새 회의록 / 문서
-          </button>
+          {/* PM은 회의록/기획서/요구사항정의서를 생성하지 않고 검토(승인/반려)만 한다 —
+              문서 생성은 일반유저 역할이므로 PM에게는 생성 버튼 자체를 숨긴다. */}
+          {!isPM && (
+            <button
+              onClick={() => setNewDocModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> 새 회의록 / 문서
+            </button>
+          )}
 
           {documents.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
